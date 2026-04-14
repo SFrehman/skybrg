@@ -8,11 +8,10 @@ import { supabase } from "@/integrations/supabase/client";
 import { Upload, FileUp, Lock } from "lucide-react";
 
 interface FileUploadProps {
-  userId: string;
   onUploadComplete: () => void;
 }
 
-export function FileUpload({ userId, onUploadComplete }: FileUploadProps) {
+export function FileUpload({ onUploadComplete }: FileUploadProps) {
   const [file, setFile] = useState<File | null>(null);
   const [passkey, setPasskey] = useState("");
   const [displayName, setDisplayName] = useState("");
@@ -30,7 +29,7 @@ export function FileUpload({ userId, onUploadComplete }: FileUploadProps) {
   };
 
   const handlePasskeySubmit = () => {
-    if (passkey === "saif_jani") {
+    if (passkey === "Saif_Jani") {
       setStep("name");
       setDisplayName(file?.name.split(".")[0] || "");
       setError("");
@@ -45,8 +44,7 @@ export function FileUpload({ userId, onUploadComplete }: FileUploadProps) {
     setError("");
 
     try {
-      const fileExt = file.name.split(".").pop();
-      const filePath = `${userId}/${Date.now()}_${file.name}`;
+      const filePath = `uploads/${Date.now()}_${file.name}`;
 
       const { error: uploadError } = await supabase.storage
         .from("user-files")
@@ -54,8 +52,9 @@ export function FileUpload({ userId, onUploadComplete }: FileUploadProps) {
 
       if (uploadError) throw uploadError;
 
+      const fileExt = file.name.split(".").pop();
+
       const { error: dbError } = await supabase.from("files").insert({
-        user_id: userId,
         file_name: file.name,
         display_name: displayName.trim(),
         file_type: file.type || `application/${fileExt}`,
@@ -109,7 +108,6 @@ export function FileUpload({ userId, onUploadComplete }: FileUploadProps) {
         </CardContent>
       </Card>
 
-      {/* Passkey Dialog */}
       <Dialog open={step === "passkey"} onOpenChange={(open) => !open && resetState()}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
@@ -136,7 +134,6 @@ export function FileUpload({ userId, onUploadComplete }: FileUploadProps) {
         </DialogContent>
       </Dialog>
 
-      {/* Name Dialog */}
       <Dialog open={step === "name" || step === "uploading"} onOpenChange={(open) => !open && step !== "uploading" && resetState()}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>

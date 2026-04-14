@@ -1,13 +1,11 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { signOut } from "@/lib/auth";
 import { LoginForm } from "@/components/LoginForm";
 import { FileUpload } from "@/components/FileUpload";
 import { FileGallery } from "@/components/FileGallery";
 import { Button } from "@/components/ui/button";
 import { LogOut, Upload } from "lucide-react";
-import type { Session } from "@supabase/supabase-js";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -20,8 +18,7 @@ export const Route = createFileRoute("/")({
 });
 
 function Index() {
-  const [session, setSession] = useState<Session | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [authed, setAuthed] = useState(() => localStorage.getItem("filevault_auth") === "true");
   const [files, setFiles] = useState<Array<{
     id: string;
     file_name: string;
@@ -33,22 +30,7 @@ function Index() {
   }>>([]);
   const [filesLoading, setFilesLoading] = useState(false);
 
-  useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session);
-      setLoading(false);
-    });
-
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setLoading(false);
-    });
-
-    return () => subscription.unsubscribe();
-  }, []);
-
   const fetchFiles = useCallback(async () => {
-    if (!session?.user) return;
     setFilesLoading(true);
     const { data } = await supabase
       .from("files")
@@ -56,23 +38,20 @@ function Index() {
       .order("created_at", { ascending: false });
     setFiles(data || []);
     setFilesLoading(false);
-  }, [session?.user]);
+  }, []);
 
   useEffect(() => {
-    if (session?.user) fetchFiles();
-  }, [session?.user, fetchFiles]);
+    if (authed) fetchFiles();
+  }, [authed, fetchFiles]);
 
-  if (loading) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-background">
-        <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
-      </div>
-    );
+  if (!authed) {
+    return <LoginForm onSuccess={() => setAuthed(true)} />;
   }
 
-  if (!session) {
-    return <LoginForm onSuccess={() => {}} />;
-  }
+  const handleLogout = () => {
+    localStorage.removeItem("filevault_auth");
+    setAuthed(false);
+  };
 
   return (
     <div className="min-h-screen bg-background">
@@ -85,8 +64,8 @@ function Index() {
             <span className="text-lg font-bold text-foreground">FileVault</span>
           </div>
           <div className="flex items-center gap-3">
-            <span className="text-sm text-muted-foreground hidden sm:block">{session.user.email}</span>
-            <Button variant="outline" size="sm" onClick={() => signOut()}>
+            <span className="text-sm text-muted-foreground hidden sm:block">Saif</span>
+            <Button variant="outline" size="sm" onClick={handleLogout}>
               <LogOut className="h-4 w-4 mr-1.5" /> Sign Out
             </Button>
           </div>
@@ -94,7 +73,7 @@ function Index() {
       </header>
 
       <main className="mx-auto max-w-6xl px-4 py-8 space-y-8">
-        <FileUpload userId={session.user.id} onUploadComplete={fetchFiles} />
+        <FileUpload onUploadComplete={fetchFiles} />
         <FileGallery files={files} loading={filesLoading} onDelete={fetchFiles} />
       </main>
     </div>
