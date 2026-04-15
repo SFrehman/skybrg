@@ -18,7 +18,13 @@ export const Route = createFileRoute("/")({
 });
 
 function Index() {
-  const [authed, setAuthed] = useState(() => localStorage.getItem("filevault_auth") === "true");
+  const [authed, setAuthed] = useState(false);
+
+  useEffect(() => {
+    if (typeof window !== "undefined" && localStorage.getItem("filevault_auth") === "true") {
+      setAuthed(true);
+    }
+  }, []);
   const [files, setFiles] = useState<Array<{
     id: string;
     file_name: string;
