@@ -2,8 +2,11 @@ import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
-import { Image, Video, FileText, File, Download, Trash2, Loader2 } from "lucide-react";
+import { Image, Video, FileText, File, Download, Trash2, Loader2, Lock } from "lucide-react";
 
 interface FileRecord {
   id: string;
@@ -40,14 +43,22 @@ function getPublicUrl(path: string): string {
 
 function FileCard({ file, onDelete }: { file: FileRecord; onDelete: () => void }) {
   const [deleting, setDeleting] = useState(false);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [deletePasskey, setDeletePasskey] = useState("");
+  const [deleteError, setDeleteError] = useState("");
   const category = getFileCategory(file.file_type);
   const url = getPublicUrl(file.storage_path);
 
-  const handleDelete = async () => {
+  const handleDeleteConfirm = async () => {
+    if (deletePasskey !== "Saif_Jani") {
+      setDeleteError("Invalid passkey");
+      return;
+    }
     setDeleting(true);
     try {
       await supabase.storage.from("user-files").remove([file.storage_path]);
       await supabase.from("files").delete().eq("id", file.id);
+      setShowDeleteDialog(false);
       onDelete();
     } catch {
       setDeleting(false);
@@ -63,29 +74,70 @@ function FileCard({ file, onDelete }: { file: FileRecord; onDelete: () => void }
   };
 
   return (
-    <Card className="overflow-hidden group hover:shadow-lg transition-shadow">
-      <div className="relative aspect-square bg-muted flex items-center justify-center overflow-hidden">
-        {category === "images" ? (
-          <img src={url} alt={file.display_name} className="w-full h-full object-cover" />
-        ) : category === "videos" ? (
-          <video src={url} className="w-full h-full object-cover" />
-        ) : (
-          <FileText className="h-12 w-12 text-muted-foreground" />
-        )}
-        <div className="absolute inset-0 bg-foreground/0 group-hover:bg-foreground/30 transition-colors flex items-center justify-center gap-2 opacity-0 group-hover:opacity-100">
-          <Button size="icon" variant="secondary" onClick={handleDownload} className="h-9 w-9">
-            <Download className="h-4 w-4" />
-          </Button>
-          <Button size="icon" variant="destructive" onClick={handleDelete} disabled={deleting} className="h-9 w-9">
-            {deleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
-          </Button>
+    <>
+      <Card className="overflow-hidden group hover:shadow-lg transition-shadow">
+        <div className="relative aspect-square bg-muted flex items-center justify-center overflow-hidden">
+          {category === "images" ? (
+            <img src={url} alt={file.display_name} className="w-full h-full object-cover" />
+          ) : category === "videos" ? (
+            <video src={url} className="w-full h-full object-cover" />
+          ) : (
+            <FileText className="h-12 w-12 text-muted-foreground" />
+          )}
+          {/* Desktop hover overlay */}
+          <div className="absolute inset-0 bg-foreground/0 group-hover:bg-foreground/30 transition-colors hidden sm:flex items-center justify-center gap-2 opacity-0 group-hover:opacity-100">
+            <Button size="icon" variant="secondary" onClick={handleDownload} className="h-9 w-9">
+              <Download className="h-4 w-4" />
+            </Button>
+            <Button size="icon" variant="destructive" onClick={() => setShowDeleteDialog(true)} disabled={deleting} className="h-9 w-9">
+              {deleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+            </Button>
+          </div>
         </div>
-      </div>
-      <CardContent className="p-3">
-        <p className="text-sm font-medium truncate text-foreground">{file.display_name}</p>
-        <p className="text-xs text-muted-foreground">{formatSize(file.file_size)}</p>
-      </CardContent>
-    </Card>
+        <CardContent className="p-3">
+          <p className="text-sm font-medium truncate text-foreground">{file.display_name}</p>
+          <p className="text-xs text-muted-foreground">{formatSize(file.file_size)}</p>
+          {/* Mobile always-visible buttons */}
+          <div className="flex gap-2 mt-2 sm:hidden">
+            <Button size="sm" variant="secondary" onClick={handleDownload} className="flex-1 gap-1">
+              <Download className="h-3.5 w-3.5" /> Download
+            </Button>
+            <Button size="sm" variant="destructive" onClick={() => setShowDeleteDialog(true)} disabled={deleting} className="flex-1 gap-1">
+              {deleting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <><Trash2 className="h-3.5 w-3.5" /> Delete</>}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Dialog open={showDeleteDialog} onOpenChange={(open) => { if (!open) { setShowDeleteDialog(false); setDeletePasskey(""); setDeleteError(""); } }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Lock className="h-5 w-5 text-destructive" />
+              Confirm Delete
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <p className="text-sm text-muted-foreground">Enter passkey to delete <strong>{file.display_name}</strong></p>
+            <Label>Passkey</Label>
+            <Input
+              type="password"
+              placeholder="Enter passkey"
+              value={deletePasskey}
+              onChange={(e) => setDeletePasskey(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && handleDeleteConfirm()}
+            />
+            {deleteError && <p className="text-sm text-destructive">{deleteError}</p>}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowDeleteDialog(false)}>Cancel</Button>
+            <Button variant="destructive" onClick={handleDeleteConfirm} disabled={deleting}>
+              {deleting ? "Deleting..." : "Delete"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
 
