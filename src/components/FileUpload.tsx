@@ -5,6 +5,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { supabase } from "@/integrations/supabase/client";
+import { getPasskey } from "@/components/PasskeyReset";
 import { Upload, FileUp, Lock } from "lucide-react";
 
 interface FileUploadProps {
@@ -29,7 +30,7 @@ export function FileUpload({ onUploadComplete }: FileUploadProps) {
   };
 
   const handlePasskeySubmit = () => {
-    if (passkey === "Saif_Jani") {
+    if (passkey === getPasskey()) {
       setStep("name");
       setDisplayName(file?.name.split(".")[0] || "");
       setError("");

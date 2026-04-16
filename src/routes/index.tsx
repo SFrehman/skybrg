@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { LoginForm } from "@/components/LoginForm";
 import { FileUpload } from "@/components/FileUpload";
 import { FileGallery } from "@/components/FileGallery";
+import { PasskeyReset } from "@/components/PasskeyReset";
 import { Button } from "@/components/ui/button";
 import { LogOut, Upload } from "lucide-react";
 
@@ -71,6 +72,7 @@ function Index() {
           </div>
           <div className="flex items-center gap-3">
             <span className="text-sm text-muted-foreground hidden sm:block">Saif</span>
+            <PasskeyReset />
             <Button variant="outline" size="sm" onClick={handleLogout}>
               <LogOut className="h-4 w-4 mr-1.5" /> Sign Out
             </Button>
