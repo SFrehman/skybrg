@@ -1,17 +1,52 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { KeyRound, Eye, EyeOff } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
 
 const RESET_PASSWORD = "5683";
 const DEFAULT_PASSKEY = "Saif_Jani";
-const PASSKEY_STORAGE_KEY = "filevault_passkey";
+
+let cachedPasskey: string = DEFAULT_PASSKEY;
+let passkeyLoaded = false;
+const listeners: Set<() => void> = new Set();
+
+async function loadPasskeyFromDb() {
+  const { data } = await supabase
+    .from("settings")
+    .select("value")
+    .eq("key", "upload_passkey")
+    .single();
+  if (data?.value) {
+    cachedPasskey = data.value;
+  }
+  passkeyLoaded = true;
+  listeners.forEach((fn) => fn());
+}
+
+// Load passkey on module init (client only)
+if (typeof window !== "undefined") {
+  loadPasskeyFromDb();
+}
 
 export function getPasskey(): string {
-  if (typeof window === "undefined") return DEFAULT_PASSKEY;
-  return localStorage.getItem(PASSKEY_STORAGE_KEY) || DEFAULT_PASSKEY;
+  return cachedPasskey;
+}
+
+export function usePasskeyReady(): boolean {
+  const [ready, setReady] = useState(passkeyLoaded);
+  useEffect(() => {
+    if (passkeyLoaded) {
+      setReady(true);
+      return;
+    }
+    const fn = () => setReady(true);
+    listeners.add(fn);
+    return () => { listeners.delete(fn); };
+  }, []);
+  return ready;
 }
 
 export function PasskeyReset() {
@@ -23,6 +58,7 @@ export function PasskeyReset() {
   const [showPasskey, setShowPasskey] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const [saving, setSaving] = useState(false);
 
   const handleOpen = () => {
     setOpen(true);
@@ -48,12 +84,24 @@ export function PasskeyReset() {
     }
   };
 
-  const handleReset = () => {
+  const handleReset = async () => {
     if (!newPasskey.trim()) {
       setError("Passkey cannot be empty");
       return;
     }
-    localStorage.setItem(PASSKEY_STORAGE_KEY, newPasskey.trim());
+    setSaving(true);
+    const { error: dbError } = await supabase
+      .from("settings")
+      .update({ value: newPasskey.trim(), updated_at: new Date().toISOString() })
+      .eq("key", "upload_passkey");
+    
+    if (dbError) {
+      setError("Failed to save passkey");
+      setSaving(false);
+      return;
+    }
+    cachedPasskey = newPasskey.trim();
+    setSaving(false);
     setSuccess("Passkey updated successfully!");
     setError("");
     setTimeout(() => handleClose(), 1200);
@@ -126,7 +174,9 @@ export function PasskeyReset() {
             {step === "verify" ? (
               <Button onClick={handleVerify}>Verify</Button>
             ) : (
-              <Button onClick={handleReset} disabled={!newPasskey.trim()}>Save Passkey</Button>
+              <Button onClick={handleReset} disabled={!newPasskey.trim() || saving}>
+                {saving ? "Saving..." : "Save Passkey"}
+              </Button>
             )}
           </DialogFooter>
         </DialogContent>

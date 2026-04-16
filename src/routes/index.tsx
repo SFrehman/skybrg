@@ -26,6 +26,7 @@ function Index() {
       setAuthed(true);
     }
   }, []);
+
   const [files, setFiles] = useState<Array<{
     id: string;
     file_name: string;
@@ -49,6 +50,26 @@ function Index() {
 
   useEffect(() => {
     if (authed) fetchFiles();
+  }, [authed, fetchFiles]);
+
+  // Realtime subscription - auto-sync files across devices
+  useEffect(() => {
+    if (!authed) return;
+
+    const channel = supabase
+      .channel("files-realtime")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "files" },
+        () => {
+          fetchFiles();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [authed, fetchFiles]);
 
   if (!authed) {
