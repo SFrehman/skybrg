@@ -5,6 +5,7 @@ import { LoginForm } from "@/components/LoginForm";
 import { FileUpload } from "@/components/FileUpload";
 import { FileGallery } from "@/components/FileGallery";
 import { PasskeyReset } from "@/components/PasskeyReset";
+import { ThemeToggle } from "@/components/ThemeToggle";
 import { Button } from "@/components/ui/button";
 import { LogOut, Upload } from "lucide-react";
 
@@ -84,15 +85,16 @@ function Index() {
   return (
     <div className="min-h-screen bg-background">
       <header className="sticky top-0 z-50 border-b border-border bg-card/80 backdrop-blur-sm">
-        <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4">
+        <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-3">
           <div className="flex items-center gap-2">
             <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary text-primary-foreground">
               <Upload className="h-5 w-5" />
             </div>
             <span className="text-lg font-bold text-foreground">FileVault</span>
           </div>
-          <div className="flex items-center gap-3">
-            <span className="text-sm text-muted-foreground hidden sm:block">Saif</span>
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            <span className="hidden text-sm text-muted-foreground sm:block">Saif</span>
+            <ThemeToggle />
             <PasskeyReset />
             <Button variant="outline" size="sm" onClick={handleLogout}>
               <LogOut className="h-4 w-4 mr-1.5" /> Sign Out
