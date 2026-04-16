@@ -30,7 +30,7 @@ export function FileUpload({ onUploadComplete }: FileUploadProps) {
   };
 
   const handlePasskeySubmit = () => {
-    if (passkey === "Saif_Jani") {
+    if (passkey === getPasskey()) {
       setStep("name");
       setDisplayName(file?.name.split(".")[0] || "");
       setError("");

@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
 import { Image, Video, FileText, File, Download, Trash2, Loader2, Lock } from "lucide-react";
+import { getPasskey } from "@/components/PasskeyReset";
 
 interface FileRecord {
   id: string;
@@ -50,7 +51,7 @@ function FileCard({ file, onDelete }: { file: FileRecord; onDelete: () => void }
   const url = getPublicUrl(file.storage_path);
 
   const handleDeleteConfirm = async () => {
-    if (deletePasskey !== "Saif_Jani") {
+    if (deletePasskey !== getPasskey()) {
       setDeleteError("Invalid passkey");
       return;
     }
