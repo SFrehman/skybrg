@@ -1,53 +1,13 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { KeyRound, Eye, EyeOff } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { setPasskey } from "@/lib/passkey";
 
 const RESET_PASSWORD = "5683";
-const DEFAULT_PASSKEY = "Saif_Jani";
-
-let cachedPasskey: string = DEFAULT_PASSKEY;
-let passkeyLoaded = false;
-const listeners: Set<() => void> = new Set();
-
-async function loadPasskeyFromDb() {
-  const { data } = await supabase
-    .from("settings")
-    .select("value")
-    .eq("key", "upload_passkey")
-    .single();
-  if (data?.value) {
-    cachedPasskey = data.value;
-  }
-  passkeyLoaded = true;
-  listeners.forEach((fn) => fn());
-}
-
-// Load passkey on module init (client only)
-if (typeof window !== "undefined") {
-  loadPasskeyFromDb();
-}
-
-export function getPasskey(): string {
-  return cachedPasskey;
-}
-
-export function usePasskeyReady(): boolean {
-  const [ready, setReady] = useState(passkeyLoaded);
-  useEffect(() => {
-    if (passkeyLoaded) {
-      setReady(true);
-      return;
-    }
-    const fn = () => setReady(true);
-    listeners.add(fn);
-    return () => { listeners.delete(fn); };
-  }, []);
-  return ready;
-}
 
 export function PasskeyReset() {
   const [open, setOpen] = useState(false);
@@ -85,22 +45,29 @@ export function PasskeyReset() {
   };
 
   const handleReset = async () => {
-    if (!newPasskey.trim()) {
+    const trimmedPasskey = newPasskey.trim();
+
+    if (!trimmedPasskey) {
       setError("Passkey cannot be empty");
       return;
     }
+
     setSaving(true);
+
     const { error: dbError } = await supabase
       .from("settings")
-      .update({ value: newPasskey.trim(), updated_at: new Date().toISOString() })
-      .eq("key", "upload_passkey");
-    
+      .upsert(
+        { key: "upload_passkey", value: trimmedPasskey, updated_at: new Date().toISOString() },
+        { onConflict: "key" }
+      );
+
     if (dbError) {
       setError("Failed to save passkey");
       setSaving(false);
       return;
     }
-    cachedPasskey = newPasskey.trim();
+
+    setPasskey(trimmedPasskey);
     setSaving(false);
     setSuccess("Passkey updated successfully!");
     setError("");

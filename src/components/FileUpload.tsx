@@ -5,7 +5,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { supabase } from "@/integrations/supabase/client";
-import { getPasskey } from "@/components/PasskeyReset";
+import { validatePasskey } from "@/lib/passkey";
 import { Upload, FileUp, Lock } from "lucide-react";
 
 interface FileUploadProps {
@@ -18,6 +18,7 @@ export function FileUpload({ onUploadComplete }: FileUploadProps) {
   const [displayName, setDisplayName] = useState("");
   const [step, setStep] = useState<"select" | "passkey" | "name" | "uploading">("select");
   const [error, setError] = useState("");
+  const [verifyingPasskey, setVerifyingPasskey] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -29,14 +30,23 @@ export function FileUpload({ onUploadComplete }: FileUploadProps) {
     }
   };
 
-  const handlePasskeySubmit = () => {
-    if (passkey === getPasskey()) {
+  const handlePasskeySubmit = async () => {
+    if (!passkey.trim()) {
+      setError("Passkey is required");
+      return;
+    }
+
+    setVerifyingPasskey(true);
+
+    if (await validatePasskey(passkey)) {
       setStep("name");
       setDisplayName(file?.name.split(".")[0] || "");
       setError("");
     } else {
       setError("Invalid passkey. Try again.");
     }
+
+    setVerifyingPasskey(false);
   };
 
   const handleUpload = async () => {
@@ -79,6 +89,7 @@ export function FileUpload({ onUploadComplete }: FileUploadProps) {
     setDisplayName("");
     setStep("select");
     setError("");
+    setVerifyingPasskey(false);
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
@@ -124,13 +135,16 @@ export function FileUpload({ onUploadComplete }: FileUploadProps) {
               placeholder="Enter passkey"
               value={passkey}
               onChange={(e) => setPasskey(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && handlePasskeySubmit()}
+              onKeyDown={(e) => e.key === "Enter" && void handlePasskeySubmit()}
+              disabled={verifyingPasskey}
             />
             {error && <p className="text-sm text-destructive">{error}</p>}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={resetState}>Cancel</Button>
-            <Button onClick={handlePasskeySubmit}>Verify</Button>
+            <Button onClick={() => void handlePasskeySubmit()} disabled={verifyingPasskey}>
+              {verifyingPasskey ? "Checking..." : "Verify"}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

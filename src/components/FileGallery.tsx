@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
 import { Image, Video, FileText, File, Download, Trash2, Loader2, Lock } from "lucide-react";
-import { getPasskey } from "@/components/PasskeyReset";
+import { validatePasskey } from "@/lib/passkey";
 
 interface FileRecord {
   id: string;
@@ -47,21 +47,30 @@ function FileCard({ file, onDelete }: { file: FileRecord; onDelete: () => void }
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [deletePasskey, setDeletePasskey] = useState("");
   const [deleteError, setDeleteError] = useState("");
+  const [checkingPasskey, setCheckingPasskey] = useState(false);
   const category = getFileCategory(file.file_type);
   const url = getPublicUrl(file.storage_path);
 
   const handleDeleteConfirm = async () => {
-    if (deletePasskey !== getPasskey()) {
+    setDeleteError("");
+    setCheckingPasskey(true);
+
+    if (!(await validatePasskey(deletePasskey))) {
       setDeleteError("Invalid passkey");
+      setCheckingPasskey(false);
       return;
     }
+
+    setCheckingPasskey(false);
     setDeleting(true);
+
     try {
       await supabase.storage.from("user-files").remove([file.storage_path]);
       await supabase.from("files").delete().eq("id", file.id);
       setShowDeleteDialog(false);
       onDelete();
     } catch {
+      setDeleteError("Delete failed. Try again.");
       setDeleting(false);
     }
   };
@@ -110,7 +119,7 @@ function FileCard({ file, onDelete }: { file: FileRecord; onDelete: () => void }
         </CardContent>
       </Card>
 
-      <Dialog open={showDeleteDialog} onOpenChange={(open) => { if (!open) { setShowDeleteDialog(false); setDeletePasskey(""); setDeleteError(""); } }}>
+      <Dialog open={showDeleteDialog} onOpenChange={(open) => { if (!open) { setShowDeleteDialog(false); setDeletePasskey(""); setDeleteError(""); setCheckingPasskey(false); setDeleting(false); } }}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
@@ -126,14 +135,15 @@ function FileCard({ file, onDelete }: { file: FileRecord; onDelete: () => void }
               placeholder="Enter passkey"
               value={deletePasskey}
               onChange={(e) => setDeletePasskey(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && handleDeleteConfirm()}
+              onKeyDown={(e) => e.key === "Enter" && void handleDeleteConfirm()}
+              disabled={deleting || checkingPasskey}
             />
             {deleteError && <p className="text-sm text-destructive">{deleteError}</p>}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowDeleteDialog(false)}>Cancel</Button>
-            <Button variant="destructive" onClick={handleDeleteConfirm} disabled={deleting}>
-              {deleting ? "Deleting..." : "Delete"}
+            <Button variant="destructive" onClick={() => void handleDeleteConfirm()} disabled={deleting || checkingPasskey}>
+              {checkingPasskey ? "Checking..." : deleting ? "Deleting..." : "Delete"}
             </Button>
           </DialogFooter>
         </DialogContent>
