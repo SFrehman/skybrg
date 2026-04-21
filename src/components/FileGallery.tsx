@@ -120,6 +120,16 @@ function FileCard({ file, onDelete, selectMode, selected, onToggleSelect, onLong
           selectMode ? "cursor-pointer" : ""
         } ${selected ? "ring-2 ring-primary" : ""}`}
         onClick={handleCardClick}
+        onTouchStart={startLongPress}
+        onTouchEnd={cancelLongPress}
+        onTouchMove={cancelLongPress}
+        onTouchCancel={cancelLongPress}
+        onContextMenu={(e) => {
+          if (!selectMode) {
+            e.preventDefault();
+            onLongPress();
+          }
+        }}
       >
         {selectMode && (
           <div className="absolute top-2 left-2 z-10 bg-background/90 rounded p-1">
