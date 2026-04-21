@@ -110,6 +110,10 @@ function FileCard({ file, onDelete, selectMode, selected, onToggleSelect, onLong
   };
 
   const handleCardClick = () => {
+    if (longPressTriggered.current) {
+      longPressTriggered.current = false;
+      return;
+    }
     if (selectMode) onToggleSelect();
   };
 
