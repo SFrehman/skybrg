@@ -311,6 +311,10 @@ export function FileGallery({ files, loading, onDelete }: FileGalleryProps) {
               selectMode={selectMode}
               selected={selectedIds.has(file.id)}
               onToggleSelect={() => toggleSelect(file.id)}
+              onLongPress={() => {
+                if (!selectMode) setSelectMode(true);
+                toggleSelect(file.id);
+              }}
             />
           ))}
         </div>
