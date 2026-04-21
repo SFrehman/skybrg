@@ -49,15 +49,34 @@ interface FileCardProps {
   selectMode: boolean;
   selected: boolean;
   onToggleSelect: () => void;
+  onLongPress: () => void;
 }
 
-function FileCard({ file, onDelete, selectMode, selected, onToggleSelect }: FileCardProps) {
+function FileCard({ file, onDelete, selectMode, selected, onToggleSelect, onLongPress }: FileCardProps) {
   const [deleting, setDeleting] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [deletePasskey, setDeletePasskey] = useState("");
   const [showPasskey, setShowPasskey] = useState(false);
   const [deleteError, setDeleteError] = useState("");
   const [checkingPasskey, setCheckingPasskey] = useState(false);
+  const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const longPressTriggered = useRef(false);
+
+  const startLongPress = () => {
+    longPressTriggered.current = false;
+    longPressTimer.current = setTimeout(() => {
+      longPressTriggered.current = true;
+      if (navigator.vibrate) navigator.vibrate(50);
+      onLongPress();
+    }, 500);
+  };
+
+  const cancelLongPress = () => {
+    if (longPressTimer.current) {
+      clearTimeout(longPressTimer.current);
+      longPressTimer.current = null;
+    }
+  };
   const category = getFileCategory(file.file_type);
   const url = getPublicUrl(file.storage_path);
 
