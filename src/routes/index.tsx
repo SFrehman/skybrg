@@ -34,7 +34,8 @@ function Index() {
     display_name: string;
     file_type: string;
     file_size: number;
-    storage_path: string;
+    storage_path: string | null;
+    text_content: string | null;
     created_at: string;
   }>>([]);
   const [filesLoading, setFilesLoading] = useState(false);
