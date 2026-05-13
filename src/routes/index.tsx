@@ -12,7 +12,7 @@ import { LogOut, Upload } from "lucide-react";
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "FileVault — Secure File Storage" },
+      { title: "SecureJaniVault — Secure File Storage" },
       { name: "description", content: "Upload, organize, and access your files from anywhere." },
     ],
   }),
@@ -91,7 +91,7 @@ function Index() {
             <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary text-primary-foreground">
               <Upload className="h-5 w-5" />
             </div>
-            <span className="text-lg font-bold text-foreground">FileVault</span>
+            <span className="text-lg font-bold text-foreground">SecureJaniVault</span>
           </div>
           <div className="flex flex-wrap items-center justify-end gap-2">
             <span className="hidden text-sm text-muted-foreground sm:block">Saif</span>
