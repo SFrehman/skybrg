@@ -35,7 +35,7 @@ export const Route = createRootRoute({
       { name: "viewport", content: "width=device-width, initial-scale=1" },
       { title: "SecureJani— Secure File Storage" },
       { name: "description", content: "Upload, organize, and access your files from anywhere." },
-      { name: "author", content: "FileVault" },
+      { name: "author", content: "SecureJaniVault" },
       { property: "og:title", content: "SecureJani— Secure File Storage" },
       { property: "og:description", content: "Upload, organize, and access your files from anywhere." },
       { property: "og:type", content: "website" },
