@@ -4,9 +4,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
 import { supabase } from "@/integrations/supabase/client";
 import { validatePasskey } from "@/lib/passkey";
-import { Upload, FileUp, Lock, X, Eye, EyeOff } from "lucide-react";
+import { Upload, FileUp, Lock, X, Eye, EyeOff, ClipboardType } from "lucide-react";
 
 interface FileUploadProps {
   onUploadComplete: () => void;
@@ -27,6 +28,61 @@ export function FileUpload({ onUploadComplete }: FileUploadProps) {
   const [progress, setProgress] = useState({ done: 0, total: 0 });
   const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Text snippet state
+  const [textStep, setTextStep] = useState<"closed" | "compose" | "passkey" | "saving">("closed");
+  const [textName, setTextName] = useState("");
+  const [textBody, setTextBody] = useState("");
+  const [textPasskey, setTextPasskey] = useState("");
+  const [showTextPasskey, setShowTextPasskey] = useState(false);
+  const [textError, setTextError] = useState("");
+  const [verifyingTextPasskey, setVerifyingTextPasskey] = useState(false);
+
+  const resetTextState = () => {
+    setTextStep("closed");
+    setTextName("");
+    setTextBody("");
+    setTextPasskey("");
+    setShowTextPasskey(false);
+    setTextError("");
+    setVerifyingTextPasskey(false);
+  };
+
+  const handleTextNext = () => {
+    if (!textName.trim()) { setTextError("Name is required"); return; }
+    if (!textBody.trim()) { setTextError("Text content is required"); return; }
+    setTextError("");
+    setTextStep("passkey");
+  };
+
+  const handleTextSave = async () => {
+    setVerifyingTextPasskey(true);
+    if (!(await validatePasskey(textPasskey))) {
+      setTextError("Invalid passkey");
+      setVerifyingTextPasskey(false);
+      return;
+    }
+    setVerifyingTextPasskey(false);
+    setTextStep("saving");
+    const body = textBody;
+    const name = textName.trim();
+    try {
+      const { error: dbError } = await supabase.from("files").insert({
+        file_name: `${name}.txt`,
+        display_name: name,
+        file_type: "text/plain",
+        file_size: new Blob([body]).size,
+        storage_path: null,
+        text_content: body,
+      });
+      if (dbError) throw dbError;
+      resetTextState();
+      onUploadComplete();
+    } catch (err: unknown) {
+      setTextError(err instanceof Error ? err.message : "Failed to save");
+      setTextStep("passkey");
+    }
+  };
 
   const addFiles = (fileList: FileList | File[]) => {
     const arr = Array.from(fileList);
@@ -150,6 +206,14 @@ export function FileUpload({ onUploadComplete }: FileUploadProps) {
             className="hidden"
             onChange={handleFileSelect}
           />
+          <Button
+            type="button"
+            variant="outline"
+            className="w-full mt-3 gap-2"
+            onClick={() => setTextStep("compose")}
+          >
+            <ClipboardType className="h-4 w-4" /> Paste / write text instead
+          </Button>
         </CardContent>
       </Card>
 
@@ -232,6 +296,80 @@ export function FileUpload({ onUploadComplete }: FileUploadProps) {
             <Button variant="outline" onClick={resetState} disabled={step === "uploading"}>Cancel</Button>
             <Button onClick={handleUpload} disabled={step === "uploading" || pending.length === 0}>
               {step === "uploading" ? "Uploading..." : `Upload ${pending.length} file${pending.length !== 1 ? "s" : ""}`}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={textStep === "compose"} onOpenChange={(open) => !open && resetTextState()}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <ClipboardType className="h-5 w-5 text-primary" />
+              New Text Snippet
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="space-y-1">
+              <Label>Name</Label>
+              <Input
+                placeholder="e.g. Wifi password"
+                value={textName}
+                onChange={(e) => setTextName(e.target.value)}
+              />
+            </div>
+            <div className="space-y-1">
+              <Label>Text</Label>
+              <Textarea
+                placeholder="Paste or type your text here..."
+                value={textBody}
+                onChange={(e) => setTextBody(e.target.value)}
+                rows={8}
+              />
+            </div>
+            {textError && <p className="text-sm text-destructive">{textError}</p>}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={resetTextState}>Cancel</Button>
+            <Button onClick={handleTextNext}>Next</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={textStep === "passkey" || textStep === "saving"} onOpenChange={(open) => !open && textStep !== "saving" && resetTextState()}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Lock className="h-5 w-5 text-primary" />
+              Enter Passkey
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <Label>Passkey to save text snippet</Label>
+            <div className="relative">
+              <Input
+                type={showTextPasskey ? "text" : "password"}
+                placeholder="Enter passkey"
+                value={textPasskey}
+                onChange={(e) => setTextPasskey(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && void handleTextSave()}
+                disabled={verifyingTextPasskey || textStep === "saving"}
+                className="pr-10"
+              />
+              <button
+                type="button"
+                onClick={() => setShowTextPasskey((v) => !v)}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+              >
+                {showTextPasskey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
+            </div>
+            {textError && <p className="text-sm text-destructive">{textError}</p>}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={resetTextState} disabled={textStep === "saving"}>Cancel</Button>
+            <Button onClick={() => void handleTextSave()} disabled={verifyingTextPasskey || textStep === "saving"}>
+              {textStep === "saving" ? "Saving..." : verifyingTextPasskey ? "Checking..." : "Save"}
             </Button>
           </DialogFooter>
         </DialogContent>
