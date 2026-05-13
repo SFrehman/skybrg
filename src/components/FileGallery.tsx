@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { supabase } from "@/integrations/supabase/client";
-import { Image, Video, FileText, File, Download, Trash2, Loader2, Lock, Eye, EyeOff, CheckSquare, Square } from "lucide-react";
+import { Image, Video, FileText, File, Download, Trash2, Loader2, Lock, Eye, EyeOff, CheckSquare, Square, Copy, Check, ClipboardType } from "lucide-react";
 import { validatePasskey } from "@/lib/passkey";
 
 interface FileRecord {
@@ -16,7 +16,8 @@ interface FileRecord {
   display_name: string;
   file_type: string;
   file_size: number;
-  storage_path: string;
+  storage_path: string | null;
+  text_content: string | null;
   created_at: string;
 }
 
@@ -26,7 +27,8 @@ interface FileGalleryProps {
   onDelete: () => void;
 }
 
-function getFileCategory(type: string): "images" | "videos" | "others" {
+function getFileCategory(type: string, isText: boolean): "images" | "videos" | "texts" | "others" {
+  if (isText) return "texts";
   if (type.startsWith("image/")) return "images";
   if (type.startsWith("video/")) return "videos";
   return "others";
@@ -38,7 +40,8 @@ function formatSize(bytes: number): string {
   return `${(bytes / 1024 / 1024).toFixed(2)} MB`;
 }
 
-function getPublicUrl(path: string): string {
+function getPublicUrl(path: string | null): string {
+  if (!path) return "";
   const { data } = supabase.storage.from("user-files").getPublicUrl(path);
   return data.publicUrl;
 }
@@ -59,6 +62,8 @@ function FileCard({ file, onDelete, selectMode, selected, onToggleSelect, onLong
   const [showPasskey, setShowPasskey] = useState(false);
   const [deleteError, setDeleteError] = useState("");
   const [checkingPasskey, setCheckingPasskey] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const [showTextDialog, setShowTextDialog] = useState(false);
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const longPressTriggered = useRef(false);
 
@@ -77,7 +82,8 @@ function FileCard({ file, onDelete, selectMode, selected, onToggleSelect, onLong
       longPressTimer.current = null;
     }
   };
-  const category = getFileCategory(file.file_type);
+  const isText = file.text_content !== null && file.text_content !== undefined;
+  const category = getFileCategory(file.file_type, isText);
   const url = getPublicUrl(file.storage_path);
 
   const handleDeleteConfirm = async () => {
@@ -91,7 +97,9 @@ function FileCard({ file, onDelete, selectMode, selected, onToggleSelect, onLong
     setCheckingPasskey(false);
     setDeleting(true);
     try {
-      await supabase.storage.from("user-files").remove([file.storage_path]);
+      if (file.storage_path) {
+        await supabase.storage.from("user-files").remove([file.storage_path]);
+      }
       await supabase.from("files").delete().eq("id", file.id);
       setShowDeleteDialog(false);
       onDelete();
@@ -109,12 +117,27 @@ function FileCard({ file, onDelete, selectMode, selected, onToggleSelect, onLong
     a.click();
   };
 
+  const handleCopy = async () => {
+    if (!file.text_content) return;
+    try {
+      await navigator.clipboard.writeText(file.text_content);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      // ignore
+    }
+  };
+
   const handleCardClick = () => {
     if (longPressTriggered.current) {
       longPressTriggered.current = false;
       return;
     }
-    if (selectMode) onToggleSelect();
+    if (selectMode) {
+      onToggleSelect();
+    } else if (isText) {
+      setShowTextDialog(true);
+    }
   };
 
   return (
@@ -145,15 +168,25 @@ function FileCard({ file, onDelete, selectMode, selected, onToggleSelect, onLong
             <img src={url} alt={file.display_name} className="w-full h-full object-cover" />
           ) : category === "videos" ? (
             <video src={url} className="w-full h-full object-cover" />
+          ) : category === "texts" ? (
+            <div className="w-full h-full p-3 overflow-hidden text-xs text-muted-foreground whitespace-pre-wrap break-words">
+              {file.text_content?.slice(0, 200)}
+            </div>
           ) : (
             <FileText className="h-12 w-12 text-muted-foreground" />
           )}
           {!selectMode && (
             <div className="absolute inset-0 bg-foreground/0 group-hover:bg-foreground/30 transition-colors hidden sm:flex items-center justify-center gap-2 opacity-0 group-hover:opacity-100">
-              <Button size="icon" variant="secondary" onClick={handleDownload} className="h-9 w-9">
-                <Download className="h-4 w-4" />
-              </Button>
-              <Button size="icon" variant="destructive" onClick={() => setShowDeleteDialog(true)} disabled={deleting} className="h-9 w-9">
+              {isText ? (
+                <Button size="icon" variant="secondary" onClick={(e) => { e.stopPropagation(); void handleCopy(); }} className="h-9 w-9">
+                  {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                </Button>
+              ) : (
+                <Button size="icon" variant="secondary" onClick={(e) => { e.stopPropagation(); handleDownload(); }} className="h-9 w-9">
+                  <Download className="h-4 w-4" />
+                </Button>
+              )}
+              <Button size="icon" variant="destructive" onClick={(e) => { e.stopPropagation(); setShowDeleteDialog(true); }} disabled={deleting} className="h-9 w-9">
                 {deleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
               </Button>
             </div>
@@ -164,16 +197,42 @@ function FileCard({ file, onDelete, selectMode, selected, onToggleSelect, onLong
           <p className="text-xs text-muted-foreground">{formatSize(file.file_size)}</p>
           {!selectMode && (
             <div className="flex gap-2 mt-2 sm:hidden">
-              <Button size="sm" variant="secondary" onClick={handleDownload} className="flex-1 gap-1">
-                <Download className="h-3.5 w-3.5" /> Download
-              </Button>
-              <Button size="sm" variant="destructive" onClick={() => setShowDeleteDialog(true)} disabled={deleting} className="flex-1 gap-1">
+              {isText ? (
+                <Button size="sm" variant="secondary" onClick={(e) => { e.stopPropagation(); void handleCopy(); }} className="flex-1 gap-1">
+                  {copied ? <><Check className="h-3.5 w-3.5" /> Copied</> : <><Copy className="h-3.5 w-3.5" /> Copy</>}
+                </Button>
+              ) : (
+                <Button size="sm" variant="secondary" onClick={(e) => { e.stopPropagation(); handleDownload(); }} className="flex-1 gap-1">
+                  <Download className="h-3.5 w-3.5" /> Download
+                </Button>
+              )}
+              <Button size="sm" variant="destructive" onClick={(e) => { e.stopPropagation(); setShowDeleteDialog(true); }} disabled={deleting} className="flex-1 gap-1">
                 {deleting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <><Trash2 className="h-3.5 w-3.5" /> Delete</>}
               </Button>
             </div>
           )}
         </CardContent>
       </Card>
+
+      <Dialog open={showTextDialog} onOpenChange={setShowTextDialog}>
+        <DialogContent className="sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <ClipboardType className="h-5 w-5 text-primary" />
+              {file.display_name}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="max-h-[60vh] overflow-y-auto rounded-md border border-border bg-muted/40 p-3 text-sm whitespace-pre-wrap break-words">
+            {file.text_content}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowTextDialog(false)}>Close</Button>
+            <Button onClick={() => void handleCopy()} className="gap-1.5">
+              {copied ? <><Check className="h-4 w-4" /> Copied</> : <><Copy className="h-4 w-4" /> Copy text</>}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={showDeleteDialog} onOpenChange={(open) => { if (!open) { setShowDeleteDialog(false); setDeletePasskey(""); setDeleteError(""); setCheckingPasskey(false); setDeleting(false); setShowPasskey(false); } }}>
         <DialogContent className="sm:max-w-md">
@@ -228,9 +287,11 @@ export function FileGallery({ files, loading, onDelete }: FileGalleryProps) {
   const [bulkDeleting, setBulkDeleting] = useState(false);
   const [bulkProgress, setBulkProgress] = useState({ done: 0, total: 0 });
 
-  const images = files.filter((f) => getFileCategory(f.file_type) === "images");
-  const videos = files.filter((f) => getFileCategory(f.file_type) === "videos");
-  const others = files.filter((f) => getFileCategory(f.file_type) === "others");
+  const isTextRecord = (f: FileRecord) => f.text_content !== null && f.text_content !== undefined;
+  const images = files.filter((f) => getFileCategory(f.file_type, isTextRecord(f)) === "images");
+  const videos = files.filter((f) => getFileCategory(f.file_type, isTextRecord(f)) === "videos");
+  const texts = files.filter((f) => getFileCategory(f.file_type, isTextRecord(f)) === "texts");
+  const others = files.filter((f) => getFileCategory(f.file_type, isTextRecord(f)) === "others");
 
   const toggleSelect = (id: string) => {
     setSelectedIds((prev) => {
@@ -266,8 +327,10 @@ export function FileGallery({ files, loading, onDelete }: FileGalleryProps) {
     setBulkDeleting(true);
     setBulkProgress({ done: 0, total: targets.length });
     try {
-      const paths = targets.map((f) => f.storage_path);
-      await supabase.storage.from("user-files").remove(paths);
+      const paths = targets.map((f) => f.storage_path).filter((p): p is string => !!p);
+      if (paths.length > 0) {
+        await supabase.storage.from("user-files").remove(paths);
+      }
       await supabase.from("files").delete().in("id", targets.map((f) => f.id));
       setBulkProgress({ done: targets.length, total: targets.length });
       setShowBulkDelete(false);
@@ -367,12 +430,16 @@ export function FileGallery({ files, loading, onDelete }: FileGalleryProps) {
             <TabsTrigger value="videos" className="gap-1.5">
               <Video className="h-4 w-4" /> Videos ({videos.length})
             </TabsTrigger>
+            <TabsTrigger value="texts" className="gap-1.5">
+              <ClipboardType className="h-4 w-4" /> Texts ({texts.length})
+            </TabsTrigger>
             <TabsTrigger value="others" className="gap-1.5">
               <FileText className="h-4 w-4" /> Others ({others.length})
             </TabsTrigger>
           </TabsList>
           <TabsContent value="images">{renderGrid(images)}</TabsContent>
           <TabsContent value="videos">{renderGrid(videos)}</TabsContent>
+          <TabsContent value="texts">{renderGrid(texts)}</TabsContent>
           <TabsContent value="others">{renderGrid(others)}</TabsContent>
         </Tabs>
       </CardContent>
