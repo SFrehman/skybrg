@@ -56,12 +56,9 @@ export function LoginForm({ onSuccess }: { onSuccess: () => void }) {
               videoRef.current?.play().catch(() => setIntroDone(true));
             }
           }}
-          onEnded={() => setIntroDone(true)}
           onEnded={(e) => {
             const v = e.currentTarget;
             v.pause();
-            v.removeAttribute("src");
-            v.load();
             setIntroDone(true);
           }}
           className="fixed inset-0 z-[100] h-full w-full object-cover bg-black"
