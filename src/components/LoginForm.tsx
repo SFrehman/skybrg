@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -12,6 +12,24 @@ export function LoginForm({ onSuccess }: { onSuccess: () => void }) {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [introDone, setIntroDone] = useState(false);
+  const [introReady, setIntroReady] = useState(false);
+  const videoRef = useRef<HTMLVideoElement>(null);
+
+  useEffect(() => {
+    // Fully buffer the video before starting playback to avoid mid-play stalls
+    const xhr = new XMLHttpRequest();
+    xhr.open("GET", introVideo, true);
+    xhr.responseType = "blob";
+    xhr.onload = () => {
+      if (xhr.status === 200 && videoRef.current) {
+        const blobUrl = URL.createObjectURL(xhr.response);
+        videoRef.current.src = blobUrl;
+        videoRef.current.load();
+      }
+    };
+    xhr.onerror = () => setIntroDone(true);
+    xhr.send();
+  }, []);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -29,11 +47,15 @@ export function LoginForm({ onSuccess }: { onSuccess: () => void }) {
     <div className="relative flex min-h-screen items-center justify-center bg-background px-4 overflow-hidden">
       {!introDone && (
         <video
-          src={introVideo}
-          autoPlay
+          ref={videoRef}
           muted
           playsInline
-          preload="auto"
+          onCanPlayThrough={() => {
+            if (!introReady) {
+              setIntroReady(true);
+              videoRef.current?.play().catch(() => setIntroDone(true));
+            }
+          }}
           onEnded={() => setIntroDone(true)}
           className="fixed inset-0 z-[100] h-full w-full object-cover bg-black"
         />
