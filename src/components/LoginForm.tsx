@@ -4,6 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Upload, Eye, EyeOff } from "lucide-react";
+import introVideo from "@/assets/intro.mp4";
 
 export function LoginForm({ onSuccess }: { onSuccess: () => void }) {
   const [username, setUsername] = useState("");
@@ -28,7 +29,7 @@ export function LoginForm({ onSuccess }: { onSuccess: () => void }) {
     <div className="relative flex min-h-screen items-center justify-center bg-background px-4 overflow-hidden">
       {!introDone && (
         <video
-          src="/intro.mp4"
+          src={introVideo}
           autoPlay
           muted
           playsInline
