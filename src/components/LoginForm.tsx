@@ -10,6 +10,8 @@ export function LoginForm({ onSuccess }: { onSuccess: () => void }) {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
+  const [introDone, setIntroDone] = useState(false);
+  const [introFading, setIntroFading] = useState(false);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -24,7 +26,25 @@ export function LoginForm({ onSuccess }: { onSuccess: () => void }) {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background px-4">
+    <div className="relative flex min-h-screen items-center justify-center bg-background px-4 overflow-hidden">
+      {!introDone && (
+        <div
+          className={`fixed inset-0 z-[100] bg-black transition-opacity duration-700 ${introFading ? "opacity-0 pointer-events-none" : "opacity-100"}`}
+        >
+          <video
+            src="/intro.mp4"
+            autoPlay
+            muted
+            playsInline
+            onEnded={() => {
+              setIntroFading(true);
+              setTimeout(() => setIntroDone(true), 700);
+            }}
+            className="h-full w-full object-cover"
+          />
+        </div>
+      )}
+      <div className={`w-full max-w-md transition-all duration-700 ${introDone ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"}`}>
       <Card className="w-full max-w-md shadow-xl border-border/50">
         <CardHeader className="text-center space-y-3">
           <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-primary text-primary-foreground">
@@ -76,6 +96,7 @@ export function LoginForm({ onSuccess }: { onSuccess: () => void }) {
           </form>
         </CardContent>
       </Card>
+      </div>
     </div>
   );
 }
