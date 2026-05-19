@@ -97,7 +97,7 @@ function Index() {
           <div className="flex flex-wrap items-center justify-end gap-2">
             <span className="hidden text-sm text-muted-foreground sm:block">Saif</span>
             <ThemeToggle />
-            <Button variant="ghost" size="sm" asChild>
+            <Button variant="outline" size="sm" asChild>
               <Link to="/about"><Info className="h-4 w-4 mr-1.5" /> About</Link>
             </Button>
             <PasskeyReset />
