@@ -7,12 +7,13 @@ import { FileGallery } from "@/components/FileGallery";
 import { PasskeyReset } from "@/components/PasskeyReset";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { Button } from "@/components/ui/button";
-import { LogOut, Upload } from "lucide-react";
+import { LogOut, Upload, Info } from "lucide-react";
+import { Link } from "@tanstack/react-router";
 
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "SecureJaniVault — Secure File Storage" },
+      { title: "SkyBridge — Secure File Storage" },
       { name: "description", content: "Upload, organize, and access your files from anywhere." },
     ],
   }),
@@ -91,11 +92,14 @@ function Index() {
             <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary text-primary-foreground">
               <Upload className="h-5 w-5" />
             </div>
-            <span className="text-lg font-bold text-foreground">SecureJaniVault</span>
+            <span className="text-lg font-bold text-foreground">SkyBridge</span>
           </div>
           <div className="flex flex-wrap items-center justify-end gap-2">
             <span className="hidden text-sm text-muted-foreground sm:block">Saif</span>
             <ThemeToggle />
+            <Button variant="ghost" size="sm" asChild>
+              <Link to="/about"><Info className="h-4 w-4 mr-1.5" /> About</Link>
+            </Button>
             <PasskeyReset />
             <Button variant="outline" size="sm" onClick={handleLogout}>
               <LogOut className="h-4 w-4 mr-1.5" /> Sign Out
