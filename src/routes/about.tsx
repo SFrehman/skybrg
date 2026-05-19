@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Shield, Cloud, Lock, Zap, Mail, Github } from "lucide-react";
+import { ArrowLeft, Shield, Cloud, Lock, Zap, MessageCircle } from "lucide-react";
 import ownerImg from "@/assets/owner.jpg";
 
 export const Route = createFileRoute("/about")({
@@ -34,6 +34,51 @@ function AboutPage() {
       </header>
 
       <main className="mx-auto max-w-5xl px-4 py-12 space-y-12">
+        {/* Developer */}
+        <section>
+          <Card className="overflow-hidden border-border/60">
+            <CardContent className="p-0">
+              <div className="grid gap-0 md:grid-cols-[280px_1fr]">
+                <div className="relative bg-gradient-to-br from-primary/20 to-primary/5 p-6 flex items-center justify-center">
+                  <div className="relative">
+                    <div className="absolute -inset-2 rounded-full bg-primary/20 blur-xl" />
+                    <img
+                      src={ownerImg}
+                      alt="Saif Jani — Developer of SkyBridge"
+                      className="relative h-48 w-48 rounded-full object-cover object-center ring-4 ring-background shadow-xl"
+                    />
+                  </div>
+                </div>
+                <div className="p-6 sm:p-8 space-y-4">
+                  <div>
+                    <p className="text-xs font-medium uppercase tracking-wider text-primary">Developer & Owner</p>
+                    <h2 className="mt-1 text-2xl font-bold text-foreground">Saif Jani</h2>
+                    <p className="text-sm text-muted-foreground">Creator of SkyBridge</p>
+                  </div>
+                  <p className="text-sm text-foreground/80 leading-relaxed">
+                    Saif built SkyBridge to solve a simple problem — having his important files
+                    in one private, secure place that he could open from any device, any time.
+                    What started as a personal tool grew into a polished vault designed around
+                    privacy, speed, and a calm user experience.
+                  </p>
+                  <div className="flex flex-wrap gap-2 pt-2">
+                    <span className="rounded-full bg-muted px-3 py-1 text-xs text-muted-foreground">Product</span>
+                    <span className="rounded-full bg-muted px-3 py-1 text-xs text-muted-foreground">Design</span>
+                    <span className="rounded-full bg-muted px-3 py-1 text-xs text-muted-foreground">Engineering</span>
+                  </div>
+                  <div className="flex gap-2 pt-2">
+                    <Button size="sm" asChild>
+                      <a href="https://wa.me/923153857725" target="_blank" rel="noreferrer">
+                        <MessageCircle className="h-4 w-4 mr-1.5" /> WhatsApp 0315 3857725
+                      </a>
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </section>
+
         {/* Hero */}
         <section className="text-center space-y-4">
           <div className="mx-auto inline-flex items-center gap-2 rounded-full border border-border bg-card px-4 py-1.5 text-xs font-medium text-muted-foreground">
@@ -65,52 +110,6 @@ function AboutPage() {
               </CardContent>
             </Card>
           ))}
-        </section>
-
-        {/* Owner */}
-        <section>
-          <Card className="overflow-hidden border-border/60">
-            <CardContent className="p-0">
-              <div className="grid gap-0 md:grid-cols-[280px_1fr]">
-                <div className="relative bg-gradient-to-br from-primary/20 to-primary/5 p-6 flex items-center justify-center">
-                  <div className="relative">
-                    <div className="absolute -inset-2 rounded-full bg-primary/20 blur-xl" />
-                    <img
-                      src={ownerImg}
-                      alt="Saif Jani — Founder of SkyBridge"
-                      className="relative h-48 w-48 rounded-full object-cover ring-4 ring-background shadow-xl"
-                    />
-                  </div>
-                </div>
-                <div className="p-6 sm:p-8 space-y-4">
-                  <div>
-                    <p className="text-xs font-medium uppercase tracking-wider text-primary">Founder & Owner</p>
-                    <h2 className="mt-1 text-2xl font-bold text-foreground">Saif Jani</h2>
-                    <p className="text-sm text-muted-foreground">Creator of SkyBridge</p>
-                  </div>
-                  <p className="text-sm text-foreground/80 leading-relaxed">
-                    Saif built SkyBridge to solve a simple problem — having his important files
-                    in one private, secure place that he could open from any device, any time.
-                    What started as a personal tool grew into a polished vault designed around
-                    privacy, speed, and a calm user experience.
-                  </p>
-                  <div className="flex flex-wrap gap-2 pt-2">
-                    <span className="rounded-full bg-muted px-3 py-1 text-xs text-muted-foreground">Product</span>
-                    <span className="rounded-full bg-muted px-3 py-1 text-xs text-muted-foreground">Design</span>
-                    <span className="rounded-full bg-muted px-3 py-1 text-xs text-muted-foreground">Engineering</span>
-                  </div>
-                  <div className="flex gap-2 pt-2">
-                    <Button variant="outline" size="sm" asChild>
-                      <a href="mailto:hello@skybridge.app"><Mail className="h-4 w-4 mr-1.5" /> Contact</a>
-                    </Button>
-                    <Button variant="outline" size="sm" asChild>
-                      <a href="https://github.com" target="_blank" rel="noreferrer"><Github className="h-4 w-4 mr-1.5" /> GitHub</a>
-                    </Button>
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
         </section>
 
         <footer className="pt-4 text-center text-xs text-muted-foreground">
