@@ -196,18 +196,21 @@ function FileCard({ file, onDelete, selectMode, selected, onToggleSelect, onLong
           <p className="text-sm font-medium truncate text-foreground">{file.display_name}</p>
           <p className="text-xs text-muted-foreground">{formatSize(file.file_size)}</p>
           {!selectMode && (
-            <div className="flex gap-2 mt-2 sm:hidden">
+            <div className="flex gap-1.5 mt-2 sm:hidden">
               {isText ? (
-                <Button size="sm" variant="secondary" onClick={(e) => { e.stopPropagation(); void handleCopy(); }} className="flex-1 gap-1">
-                  {copied ? <><Check className="h-3.5 w-3.5" /> Copied</> : <><Copy className="h-3.5 w-3.5" /> Copy</>}
+                <Button size="sm" variant="secondary" onClick={(e) => { e.stopPropagation(); void handleCopy(); }} className="flex-1 gap-1 px-2 min-w-0">
+                  {copied ? <Check className="h-3.5 w-3.5 shrink-0" /> : <Copy className="h-3.5 w-3.5 shrink-0" />}
+                  <span className="truncate hidden xs:inline">{copied ? "Copied" : "Copy"}</span>
                 </Button>
               ) : (
-                <Button size="sm" variant="secondary" onClick={(e) => { e.stopPropagation(); handleDownload(); }} className="flex-1 gap-1">
-                  <Download className="h-3.5 w-3.5" /> Download
+                <Button size="sm" variant="secondary" onClick={(e) => { e.stopPropagation(); handleDownload(); }} className="flex-1 gap-1 px-2 min-w-0">
+                  <Download className="h-3.5 w-3.5 shrink-0" />
+                  <span className="truncate hidden xs:inline">Save</span>
                 </Button>
               )}
-              <Button size="sm" variant="destructive" onClick={(e) => { e.stopPropagation(); setShowDeleteDialog(true); }} disabled={deleting} className="flex-1 gap-1">
-                {deleting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <><Trash2 className="h-3.5 w-3.5" /> Delete</>}
+              <Button size="sm" variant="destructive" onClick={(e) => { e.stopPropagation(); setShowDeleteDialog(true); }} disabled={deleting} className="flex-1 gap-1 px-2 min-w-0">
+                {deleting ? <Loader2 className="h-3.5 w-3.5 animate-spin shrink-0" /> : <Trash2 className="h-3.5 w-3.5 shrink-0" />}
+                <span className="truncate hidden xs:inline">Delete</span>
               </Button>
             </div>
           )}
