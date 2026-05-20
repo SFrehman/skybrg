@@ -423,18 +423,26 @@ export function FileGallery({ files, loading, onDelete }: FileGalleryProps) {
       </CardHeader>
       <CardContent>
         <Tabs defaultValue="images">
-          <TabsList className="mb-4">
-            <TabsTrigger value="images" className="gap-1.5">
-              <Image className="h-4 w-4" /> Images ({images.length})
+          <TabsList className="mb-4 grid w-full grid-cols-4 sm:inline-flex sm:w-auto">
+            <TabsTrigger value="images" className="gap-1.5 px-2 sm:px-3">
+              <Image className="h-4 w-4 shrink-0" />
+              <span className="hidden sm:inline">Images</span>
+              <span>({images.length})</span>
             </TabsTrigger>
-            <TabsTrigger value="videos" className="gap-1.5">
-              <Video className="h-4 w-4" /> Videos ({videos.length})
+            <TabsTrigger value="videos" className="gap-1.5 px-2 sm:px-3">
+              <Video className="h-4 w-4 shrink-0" />
+              <span className="hidden sm:inline">Videos</span>
+              <span>({videos.length})</span>
             </TabsTrigger>
-            <TabsTrigger value="texts" className="gap-1.5">
-              <ClipboardType className="h-4 w-4" /> Texts ({texts.length})
+            <TabsTrigger value="texts" className="gap-1.5 px-2 sm:px-3">
+              <ClipboardType className="h-4 w-4 shrink-0" />
+              <span className="hidden sm:inline">Texts</span>
+              <span>({texts.length})</span>
             </TabsTrigger>
-            <TabsTrigger value="others" className="gap-1.5">
-              <FileText className="h-4 w-4" /> Others ({others.length})
+            <TabsTrigger value="others" className="gap-1.5 px-2 sm:px-3">
+              <FileText className="h-4 w-4 shrink-0" />
+              <span className="hidden sm:inline">Others</span>
+              <span>({others.length})</span>
             </TabsTrigger>
           </TabsList>
           <TabsContent value="images">{renderGrid(images)}</TabsContent>
