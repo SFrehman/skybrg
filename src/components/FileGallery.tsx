@@ -200,17 +200,17 @@ function FileCard({ file, onDelete, selectMode, selected, onToggleSelect, onLong
               {isText ? (
                 <Button size="sm" variant="secondary" onClick={(e) => { e.stopPropagation(); void handleCopy(); }} className="flex-1 gap-1 px-2 min-w-0">
                   {copied ? <Check className="h-3.5 w-3.5 shrink-0" /> : <Copy className="h-3.5 w-3.5 shrink-0" />}
-                  <span className="truncate hidden xs:inline">{copied ? "Copied" : "Copy"}</span>
+                  <span className="truncate text-xs">{copied ? "Copied" : "Copy"}</span>
                 </Button>
               ) : (
                 <Button size="sm" variant="secondary" onClick={(e) => { e.stopPropagation(); handleDownload(); }} className="flex-1 gap-1 px-2 min-w-0">
                   <Download className="h-3.5 w-3.5 shrink-0" />
-                  <span className="truncate hidden xs:inline">Save</span>
+                  <span className="truncate text-xs">Save</span>
                 </Button>
               )}
               <Button size="sm" variant="destructive" onClick={(e) => { e.stopPropagation(); setShowDeleteDialog(true); }} disabled={deleting} className="flex-1 gap-1 px-2 min-w-0">
                 {deleting ? <Loader2 className="h-3.5 w-3.5 animate-spin shrink-0" /> : <Trash2 className="h-3.5 w-3.5 shrink-0" />}
-                <span className="truncate hidden xs:inline">Delete</span>
+                <span className="truncate text-xs">Delete</span>
               </Button>
             </div>
           )}
