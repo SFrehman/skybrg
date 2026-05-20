@@ -7,7 +7,15 @@ import { FileGallery } from "@/components/FileGallery";
 import { PasskeyReset } from "@/components/PasskeyReset";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { Button } from "@/components/ui/button";
-import { LogOut, Upload, Info } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { LogOut, Upload, Info, Menu } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 
 export const Route = createFileRoute("/")({
@@ -87,15 +95,16 @@ function Index() {
   return (
     <div className="min-h-screen bg-background">
       <header className="sticky top-0 z-50 border-b border-border bg-card/80 backdrop-blur-sm">
-        <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-3">
+        <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-3 sm:px-4 py-3">
           <div className="flex items-center gap-2">
             <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary text-primary-foreground">
               <Upload className="h-5 w-5" />
             </div>
             <span className="text-lg font-bold text-foreground">SkyBridge</span>
           </div>
-          <div className="flex flex-wrap items-center justify-end gap-2">
-            <span className="hidden text-sm text-muted-foreground sm:block">Saif</span>
+          {/* Desktop actions */}
+          <div className="hidden sm:flex flex-wrap items-center justify-end gap-2">
+            <span className="text-sm text-muted-foreground">Saif</span>
             <ThemeToggle />
             <Button variant="outline" size="sm" asChild>
               <Link to="/about"><Info className="h-4 w-4 mr-1.5" /> About</Link>
@@ -105,10 +114,35 @@ function Index() {
               <LogOut className="h-4 w-4 mr-1.5" /> Sign Out
             </Button>
           </div>
+          {/* Mobile actions */}
+          <div className="flex sm:hidden items-center gap-2">
+            <ThemeToggle />
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="icon" aria-label="Open menu">
+                  <Menu className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56">
+                <DropdownMenuLabel>Saif</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem asChild>
+                  <Link to="/about"><Info className="h-4 w-4 mr-2" /> About</Link>
+                </DropdownMenuItem>
+                <div className="px-1 py-1">
+                  <PasskeyReset />
+                </div>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={handleLogout}>
+                  <LogOut className="h-4 w-4 mr-2" /> Sign Out
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
         </div>
       </header>
 
-      <main className="mx-auto max-w-6xl px-4 py-8 space-y-8">
+      <main className="mx-auto max-w-6xl px-3 sm:px-4 py-6 sm:py-8 space-y-6 sm:space-y-8">
         <FileUpload onUploadComplete={fetchFiles} />
         <FileGallery files={files} loading={filesLoading} onDelete={fetchFiles} />
       </main>
