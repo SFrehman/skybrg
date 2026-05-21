@@ -208,22 +208,24 @@ export function FileUpload({ onUploadComplete }: FileUploadProps) {
             className="hidden"
             onChange={handleFileSelect}
           />
-          <Button
-            type="button"
-            variant="outline"
-            className="w-full mt-3 gap-2"
-            onClick={() => setCameraOpen(true)}
-          >
-            <Camera className="h-4 w-4" /> Open camera
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            className="w-full mt-3 gap-2"
-            onClick={() => setTextStep("compose")}
-          >
-            <ClipboardType className="h-4 w-4" /> Paste / write text instead
-          </Button>
+          <div className="mt-3 mx-auto flex w-[80%] gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              className="flex-1 gap-2"
+              onClick={() => setCameraOpen(true)}
+            >
+              <Camera className="h-4 w-4" /> Camera
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              className="flex-1 gap-2"
+              onClick={() => setTextStep("compose")}
+            >
+              <ClipboardType className="h-4 w-4" /> Paste text
+            </Button>
+          </div>
         </CardContent>
       </Card>
 
