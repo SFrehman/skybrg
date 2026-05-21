@@ -7,7 +7,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Textarea } from "@/components/ui/textarea";
 import { supabase } from "@/integrations/supabase/client";
 import { validatePasskey } from "@/lib/passkey";
-import { Upload, FileUp, Lock, X, Eye, EyeOff, ClipboardType } from "lucide-react";
+import { Upload, FileUp, Lock, X, Eye, EyeOff, ClipboardType, Camera, Video } from "lucide-react";
 
 interface FileUploadProps {
   onUploadComplete: () => void;
@@ -28,6 +28,8 @@ export function FileUpload({ onUploadComplete }: FileUploadProps) {
   const [progress, setProgress] = useState({ done: 0, total: 0 });
   const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const cameraPhotoRef = useRef<HTMLInputElement>(null);
+  const cameraVideoRef = useRef<HTMLInputElement>(null);
 
   // Text snippet state
   const [textStep, setTextStep] = useState<"closed" | "compose" | "passkey" | "saving">("closed");
@@ -206,6 +208,40 @@ export function FileUpload({ onUploadComplete }: FileUploadProps) {
             className="hidden"
             onChange={handleFileSelect}
           />
+          <input
+            ref={cameraPhotoRef}
+            type="file"
+            accept="image/*"
+            capture="environment"
+            className="hidden"
+            onChange={handleFileSelect}
+          />
+          <input
+            ref={cameraVideoRef}
+            type="file"
+            accept="video/*"
+            capture="environment"
+            className="hidden"
+            onChange={handleFileSelect}
+          />
+          <div className="grid grid-cols-2 gap-2 mt-3">
+            <Button
+              type="button"
+              variant="outline"
+              className="gap-2"
+              onClick={() => cameraPhotoRef.current?.click()}
+            >
+              <Camera className="h-4 w-4" /> Take photo
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              className="gap-2"
+              onClick={() => cameraVideoRef.current?.click()}
+            >
+              <Video className="h-4 w-4" /> Record video
+            </Button>
+          </div>
           <Button
             type="button"
             variant="outline"
