@@ -24,6 +24,9 @@ export function CameraCapture({ open, onClose, onDone }: CameraCaptureProps) {
   const [recording, setRecording] = useState(false);
   const [error, setError] = useState("");
   const [facing, setFacing] = useState<"user" | "environment">("environment");
+  const [elapsed, setElapsed] = useState(0);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const [preview, setPreview] = useState<{ idx: number; item: Captured } | null>(null);
 
   const stopStream = () => {
     streamRef.current?.getTracks().forEach((t) => t.stop());
@@ -57,6 +60,8 @@ export function CameraCapture({ open, onClose, onDone }: CameraCaptureProps) {
         try { recorderRef.current.stop(); } catch { /* noop */ }
       }
       setRecording(false);
+      if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
+      setElapsed(0);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, facing]);
@@ -107,12 +112,16 @@ export function CameraCapture({ open, onClose, onDone }: CameraCaptureProps) {
     recorderRef.current = rec;
     rec.start();
     setRecording(true);
+    setElapsed(0);
+    if (timerRef.current) clearInterval(timerRef.current);
+    timerRef.current = setInterval(() => setElapsed((s) => s + 1), 1000);
   };
 
   const stopRecording = () => {
     const rec = recorderRef.current;
     if (rec && rec.state !== "inactive") rec.stop();
     setRecording(false);
+    if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
   };
 
   const removeCaptured = (idx: number) => {
@@ -122,6 +131,12 @@ export function CameraCapture({ open, onClose, onDone }: CameraCaptureProps) {
       if (removed) URL.revokeObjectURL(removed.url);
       return next;
     });
+  };
+
+  const formatTime = (s: number) => {
+    const m = Math.floor(s / 60).toString().padStart(2, "0");
+    const sec = (s % 60).toString().padStart(2, "0");
+    return `${m}:${sec}`;
   };
 
   const handleDone = () => {
@@ -140,6 +155,7 @@ export function CameraCapture({ open, onClose, onDone }: CameraCaptureProps) {
   };
 
   return (
+    <>
     <Dialog open={open} onOpenChange={(o) => { if (!o) handleCancel(); }}>
       <DialogContent className="sm:max-w-lg p-0 overflow-hidden">
         <DialogHeader className="px-4 pt-4">
@@ -150,8 +166,8 @@ export function CameraCapture({ open, onClose, onDone }: CameraCaptureProps) {
         <div className="relative bg-black aspect-video">
           <video ref={videoRef} playsInline muted className="w-full h-full object-contain" />
           {recording && (
-            <span className="absolute top-2 left-2 flex items-center gap-1.5 rounded-full bg-destructive/90 px-2 py-0.5 text-xs font-medium text-destructive-foreground">
-              <span className="h-2 w-2 rounded-full bg-white animate-pulse" /> REC
+            <span className="absolute top-2 left-2 flex items-center gap-1.5 rounded-full bg-destructive/90 px-2.5 py-1 text-xs font-medium text-destructive-foreground tabular-nums">
+              <span className="h-2 w-2 rounded-full bg-white animate-pulse" /> REC {formatTime(elapsed)}
             </span>
           )}
           <button
@@ -183,13 +199,20 @@ export function CameraCapture({ open, onClose, onDone }: CameraCaptureProps) {
             <div className="flex gap-2 flex-wrap">
               {captured.map((c, i) => (
                 <div key={i} className="relative h-16 w-16 rounded-md overflow-hidden border border-border bg-muted">
-                  {c.kind === "image" ? (
-                    <img src={c.url} alt="" className="h-full w-full object-cover" />
-                  ) : (
-                    <div className="flex h-full w-full items-center justify-center bg-black text-white">
-                      <Video className="h-5 w-5" />
-                    </div>
-                  )}
+                  <button
+                    type="button"
+                    onClick={() => setPreview({ idx: i, item: c })}
+                    className="block h-full w-full"
+                    aria-label="Preview"
+                  >
+                    {c.kind === "image" ? (
+                      <img src={c.url} alt="" className="h-full w-full object-cover" />
+                    ) : (
+                      <div className="flex h-full w-full items-center justify-center bg-black text-white">
+                        <Video className="h-5 w-5" />
+                      </div>
+                    )}
+                  </button>
                   <button
                     type="button"
                     onClick={() => removeCaptured(i)}
@@ -211,5 +234,38 @@ export function CameraCapture({ open, onClose, onDone }: CameraCaptureProps) {
         </DialogFooter>
       </DialogContent>
     </Dialog>
+
+    <Dialog open={!!preview} onOpenChange={(o) => { if (!o) setPreview(null); }}>
+      <DialogContent className="sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle>Preview</DialogTitle>
+        </DialogHeader>
+        {preview && (
+          <div className="bg-black rounded-md overflow-hidden flex items-center justify-center">
+            {preview.item.kind === "image" ? (
+              <img src={preview.item.url} alt="" className="max-h-[60vh] w-auto" />
+            ) : (
+              <video src={preview.item.url} controls autoPlay className="max-h-[60vh] w-full" />
+            )}
+          </div>
+        )}
+        <DialogFooter>
+          <Button
+            variant="destructive"
+            onClick={() => {
+              if (preview) removeCaptured(preview.idx);
+              setPreview(null);
+            }}
+            className="gap-2"
+          >
+            <X className="h-4 w-4" /> Delete
+          </Button>
+          <Button onClick={() => setPreview(null)} className="gap-2">
+            <Check className="h-4 w-4" /> Keep
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+    </>
   );
 }
