@@ -155,6 +155,7 @@ export function CameraCapture({ open, onClose, onDone }: CameraCaptureProps) {
   };
 
   return (
+    <>
     <Dialog open={open} onOpenChange={(o) => { if (!o) handleCancel(); }}>
       <DialogContent className="sm:max-w-lg p-0 overflow-hidden">
         <DialogHeader className="px-4 pt-4">
