@@ -7,8 +7,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Textarea } from "@/components/ui/textarea";
 import { supabase } from "@/integrations/supabase/client";
 import { validatePasskey } from "@/lib/passkey";
-import { Upload, FileUp, Lock, X, Eye, EyeOff, ClipboardType, Camera } from "lucide-react";
-import { CameraCapture } from "@/components/CameraCapture";
+import { Upload, FileUp, Lock, X, Eye, EyeOff, ClipboardType } from "lucide-react";
 
 interface FileUploadProps {
   onUploadComplete: () => void;
@@ -29,7 +28,6 @@ export function FileUpload({ onUploadComplete }: FileUploadProps) {
   const [progress, setProgress] = useState({ done: 0, total: 0 });
   const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [cameraOpen, setCameraOpen] = useState(false);
 
   // Text snippet state
   const [textStep, setTextStep] = useState<"closed" | "compose" | "passkey" | "saving">("closed");
@@ -208,19 +206,11 @@ export function FileUpload({ onUploadComplete }: FileUploadProps) {
             className="hidden"
             onChange={handleFileSelect}
           />
-          <div className="mt-3 mx-auto flex w-[80%] gap-2">
+          <div className="mt-3">
             <Button
               type="button"
               variant="outline"
-              className="flex-1 gap-2"
-              onClick={() => setCameraOpen(true)}
-            >
-              <Camera className="h-4 w-4" /> Camera
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              className="flex-1 gap-2"
+              className="w-full gap-2"
               onClick={() => setTextStep("compose")}
             >
               <ClipboardType className="h-4 w-4" /> Paste text
@@ -228,15 +218,6 @@ export function FileUpload({ onUploadComplete }: FileUploadProps) {
           </div>
         </CardContent>
       </Card>
-
-      <CameraCapture
-        open={cameraOpen}
-        onClose={() => setCameraOpen(false)}
-        onDone={(files) => {
-          setCameraOpen(false);
-          addFiles(files);
-        }}
-      />
 
       <Dialog open={step === "passkey"} onOpenChange={(open) => !open && resetState()}>
         <DialogContent className="sm:max-w-md">

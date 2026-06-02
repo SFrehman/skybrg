@@ -109,12 +109,22 @@ function FileCard({ file, onDelete, selectMode, selected, onToggleSelect, onLong
     }
   };
 
-  const handleDownload = () => {
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = file.file_name;
-    a.target = "_blank";
-    a.click();
+  const handleDownload = async () => {
+    try {
+      const response = await fetch(url);
+      if (!response.ok) throw new Error("Download failed");
+      const blob = await response.blob();
+      const blobUrl = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = blobUrl;
+      a.download = file.file_name;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(blobUrl);
+    } catch {
+      window.open(url, "_blank");
+    }
   };
 
   const handleCopy = async () => {
@@ -182,7 +192,7 @@ function FileCard({ file, onDelete, selectMode, selected, onToggleSelect, onLong
                   {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
                 </Button>
               ) : (
-                <Button size="icon" variant="secondary" onClick={(e) => { e.stopPropagation(); handleDownload(); }} className="h-9 w-9">
+                <Button size="icon" variant="secondary" onClick={(e) => { e.stopPropagation(); void handleDownload(); }} className="h-9 w-9">
                   <Download className="h-4 w-4" />
                 </Button>
               )}
@@ -202,7 +212,7 @@ function FileCard({ file, onDelete, selectMode, selected, onToggleSelect, onLong
                   {copied ? <Check className="h-3.5 w-3.5 shrink-0" /> : <Copy className="h-3.5 w-3.5 shrink-0" />}
                 </Button>
               ) : (
-                <Button size="sm" variant="secondary" onClick={(e) => { e.stopPropagation(); handleDownload(); }} className="flex-1 gap-1 px-2 min-w-0">
+                <Button size="sm" variant="secondary" onClick={(e) => { e.stopPropagation(); void handleDownload(); }} className="flex-1 gap-1 px-2 min-w-0">
                   <Download className="h-3.5 w-3.5 shrink-0" />
                 </Button>
               )}
