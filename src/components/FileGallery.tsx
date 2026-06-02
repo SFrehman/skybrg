@@ -110,8 +110,13 @@ function FileCard({ file, onDelete, selectMode, selected, onToggleSelect, onLong
   };
 
   const handleDownload = async () => {
+    const downloadUrl = file.storage_path
+      ? supabase.storage.from("user-files").getPublicUrl(file.storage_path, {
+          download: file.file_name,
+        }).data.publicUrl
+      : url;
     try {
-      const response = await fetch(url);
+      const response = await fetch(downloadUrl);
       if (!response.ok) throw new Error("Download failed");
       const blob = await response.blob();
       const blobUrl = URL.createObjectURL(blob);
@@ -123,7 +128,12 @@ function FileCard({ file, onDelete, selectMode, selected, onToggleSelect, onLong
       document.body.removeChild(a);
       URL.revokeObjectURL(blobUrl);
     } catch {
-      window.open(url, "_blank");
+      const a = document.createElement("a");
+      a.href = downloadUrl;
+      a.download = file.file_name;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
     }
   };
 
