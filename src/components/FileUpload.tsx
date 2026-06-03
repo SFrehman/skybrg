@@ -27,6 +27,7 @@ export function FileUpload({ onUploadComplete }: FileUploadProps) {
   const [error, setError] = useState("");
   const [verifyingPasskey, setVerifyingPasskey] = useState(false);
   const [progress, setProgress] = useState({ done: 0, total: 0 });
+  const [bytesProgress, setBytesProgress] = useState({ uploaded: 0, total: 0 });
   const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -128,6 +129,8 @@ export function FileUpload({ onUploadComplete }: FileUploadProps) {
     setStep("uploading");
     setError("");
     setProgress({ done: 0, total: pending.length });
+    const totalBytes = pending.reduce((s, p) => s + p.file.size, 0);
+    setBytesProgress({ uploaded: 0, total: totalBytes });
 
     try {
       const CONCURRENCY = 4;
@@ -141,6 +144,7 @@ export function FileUpload({ onUploadComplete }: FileUploadProps) {
       }> = new Array(pending.length);
       let done = 0;
       let cursor = 0;
+      const perFileUploaded = new Array<number>(pending.length).fill(0);
 
       const worker = async () => {
         while (true) {
@@ -148,7 +152,12 @@ export function FileUpload({ onUploadComplete }: FileUploadProps) {
           if (i >= pending.length) return;
           const { file, displayName } = pending[i];
           const filePath = `uploads/${stamp}_${i}_${file.name}`;
-          await uploadFileFast("user-files", filePath, file);
+          await uploadFileFast("user-files", filePath, file, (uploaded) => {
+            perFileUploaded[i] = uploaded;
+            const sum = perFileUploaded.reduce((a, b) => a + b, 0);
+            setBytesProgress({ uploaded: sum, total: totalBytes });
+          });
+          perFileUploaded[i] = file.size;
           const fileExt = file.name.split(".").pop();
           rows[i] = {
             file_name: file.name,
@@ -310,9 +319,22 @@ export function FileUpload({ onUploadComplete }: FileUploadProps) {
               </div>
             ))}
             {step === "uploading" && (
-              <p className="text-sm text-muted-foreground text-center">
-                Uploading {progress.done} of {progress.total}...
-              </p>
+              <div className="space-y-2">
+                <p className="text-sm text-muted-foreground text-center">
+                  Uploading {progress.done} of {progress.total}
+                  {bytesProgress.total > 0 && (
+                    <> &middot; {(bytesProgress.uploaded / 1024 / 1024).toFixed(1)} / {(bytesProgress.total / 1024 / 1024).toFixed(1)} MB</>
+                  )}
+                </p>
+                {bytesProgress.total > 0 && (
+                  <div className="h-2 w-full rounded-full bg-muted overflow-hidden">
+                    <div
+                      className="h-full bg-primary transition-all"
+                      style={{ width: `${Math.min(100, (bytesProgress.uploaded / bytesProgress.total) * 100)}%` }}
+                    />
+                  </div>
+                )}
+              </div>
             )}
             {error && <p className="text-sm text-destructive">{error}</p>}
           </div>
