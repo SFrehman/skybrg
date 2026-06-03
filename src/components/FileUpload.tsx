@@ -319,9 +319,22 @@ export function FileUpload({ onUploadComplete }: FileUploadProps) {
               </div>
             ))}
             {step === "uploading" && (
-              <p className="text-sm text-muted-foreground text-center">
-                Uploading {progress.done} of {progress.total}...
-              </p>
+              <div className="space-y-2">
+                <p className="text-sm text-muted-foreground text-center">
+                  Uploading {progress.done} of {progress.total}
+                  {bytesProgress.total > 0 && (
+                    <> &middot; {(bytesProgress.uploaded / 1024 / 1024).toFixed(1)} / {(bytesProgress.total / 1024 / 1024).toFixed(1)} MB</>
+                  )}
+                </p>
+                {bytesProgress.total > 0 && (
+                  <div className="h-2 w-full rounded-full bg-muted overflow-hidden">
+                    <div
+                      className="h-full bg-primary transition-all"
+                      style={{ width: `${Math.min(100, (bytesProgress.uploaded / bytesProgress.total) * 100)}%` }}
+                    />
+                  </div>
+                )}
+              </div>
             )}
             {error && <p className="text-sm text-destructive">{error}</p>}
           </div>
