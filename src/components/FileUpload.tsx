@@ -7,6 +7,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Textarea } from "@/components/ui/textarea";
 import { supabase } from "@/integrations/supabase/client";
 import { validatePasskey } from "@/lib/passkey";
+import { uploadFileFast } from "@/lib/resumable-upload";
 import { Upload, FileUp, Lock, X, Eye, EyeOff, ClipboardType } from "lucide-react";
 
 interface FileUploadProps {
@@ -147,14 +148,7 @@ export function FileUpload({ onUploadComplete }: FileUploadProps) {
           if (i >= pending.length) return;
           const { file, displayName } = pending[i];
           const filePath = `uploads/${stamp}_${i}_${file.name}`;
-          const { error: uploadError } = await supabase.storage
-            .from("user-files")
-            .upload(filePath, file, {
-              cacheControl: "3600",
-              upsert: false,
-              contentType: file.type || undefined,
-            });
-          if (uploadError) throw uploadError;
+          await uploadFileFast("user-files", filePath, file);
           const fileExt = file.name.split(".").pop();
           rows[i] = {
             file_name: file.name,
