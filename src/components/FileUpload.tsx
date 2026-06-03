@@ -129,24 +129,52 @@ export function FileUpload({ onUploadComplete }: FileUploadProps) {
     setProgress({ done: 0, total: pending.length });
 
     try {
-      for (let i = 0; i < pending.length; i++) {
-        const { file, displayName } = pending[i];
-        const filePath = `uploads/${Date.now()}_${i}_${file.name}`;
-        const { error: uploadError } = await supabase.storage
-          .from("user-files")
-          .upload(filePath, file);
-        if (uploadError) throw uploadError;
-        const fileExt = file.name.split(".").pop();
-        const { error: dbError } = await supabase.from("files").insert({
-          file_name: file.name,
-          display_name: displayName.trim(),
-          file_type: file.type || `application/${fileExt}`,
-          file_size: file.size,
-          storage_path: filePath,
-        });
-        if (dbError) throw dbError;
-        setProgress({ done: i + 1, total: pending.length });
-      }
+      const CONCURRENCY = 4;
+      const stamp = Date.now();
+      const rows: Array<{
+        file_name: string;
+        display_name: string;
+        file_type: string;
+        file_size: number;
+        storage_path: string;
+      }> = new Array(pending.length);
+      let done = 0;
+      let cursor = 0;
+
+      const worker = async () => {
+        while (true) {
+          const i = cursor++;
+          if (i >= pending.length) return;
+          const { file, displayName } = pending[i];
+          const filePath = `uploads/${stamp}_${i}_${file.name}`;
+          const { error: uploadError } = await supabase.storage
+            .from("user-files")
+            .upload(filePath, file, {
+              cacheControl: "3600",
+              upsert: false,
+              contentType: file.type || undefined,
+            });
+          if (uploadError) throw uploadError;
+          const fileExt = file.name.split(".").pop();
+          rows[i] = {
+            file_name: file.name,
+            display_name: displayName.trim(),
+            file_type: file.type || `application/${fileExt}`,
+            file_size: file.size,
+            storage_path: filePath,
+          };
+          done++;
+          setProgress({ done, total: pending.length });
+        }
+      };
+
+      await Promise.all(
+        Array.from({ length: Math.min(CONCURRENCY, pending.length) }, worker)
+      );
+
+      const { error: dbError } = await supabase.from("files").insert(rows);
+      if (dbError) throw dbError;
+
       resetState();
       onUploadComplete();
     } catch (err: unknown) {
