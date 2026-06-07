@@ -104,6 +104,41 @@ export function FileUpload({ onUploadComplete }: FileUploadProps) {
     if (e.target.files) addFiles(e.target.files);
   };
 
+  const handleFolderSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const list = e.target.files;
+    if (!list || list.length === 0) return;
+    const files = Array.from(list);
+    // Derive folder name from the first file's relative path
+    const firstRel = (files[0] as File & { webkitRelativePath?: string }).webkitRelativePath || files[0].name;
+    const folderName = firstRel.split("/")[0] || "folder";
+
+    setZipping(true);
+    setZipProgress(0);
+    try {
+      const zip = new JSZip();
+      for (const f of files) {
+        const rel = (f as File & { webkitRelativePath?: string }).webkitRelativePath || f.name;
+        // Strip the top-level folder so the zip extracts cleanly
+        const inner = rel.includes("/") ? rel.substring(rel.indexOf("/") + 1) : rel;
+        zip.file(inner, f);
+      }
+      const blob = await zip.generateAsync(
+        { type: "blob", compression: "DEFLATE", compressionOptions: { level: 6 } },
+        (meta) => setZipProgress(Math.round(meta.percent))
+      );
+      const zipFile = new File([blob], `${folderName}.zip`, { type: "application/zip" });
+      setPending([{ file: zipFile, displayName: folderName }]);
+      setStep("passkey");
+      setError("");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to zip folder");
+    } finally {
+      setZipping(false);
+      setZipProgress(0);
+      if (folderInputRef.current) folderInputRef.current.value = "";
+    }
+  };
+
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     setIsDragging(false);
