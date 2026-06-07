@@ -276,7 +276,30 @@ export function FileUpload({ onUploadComplete }: FileUploadProps) {
             className="hidden"
             onChange={handleFileSelect}
           />
-          <div className="mt-3">
+          <input
+            ref={folderInputRef}
+            type="file"
+            className="hidden"
+            onChange={(e) => void handleFolderSelect(e)}
+            // @ts-expect-error non-standard but widely supported attributes
+            webkitdirectory=""
+            directory=""
+            mozdirectory=""
+          />
+          <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full gap-2"
+              onClick={() => folderInputRef.current?.click()}
+              disabled={zipping}
+            >
+              {zipping ? (
+                <><Loader2 className="h-4 w-4 animate-spin" /> Zipping {zipProgress}%</>
+              ) : (
+                <><FolderUp className="h-4 w-4" /> Upload folder (zip)</>
+              )}
+            </Button>
             <Button
               type="button"
               variant="outline"
