@@ -8,7 +8,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { supabase } from "@/integrations/supabase/client";
 import { validatePasskey } from "@/lib/passkey";
 import { uploadFileFast } from "@/lib/resumable-upload";
-import { Upload, FileUp, Lock, X, Eye, EyeOff, ClipboardType } from "lucide-react";
+import { Upload, FileUp, Lock, X, Eye, EyeOff, ClipboardType, FolderUp, Loader2 } from "lucide-react";
+import JSZip from "jszip";
 
 interface FileUploadProps {
   onUploadComplete: () => void;
@@ -30,6 +31,9 @@ export function FileUpload({ onUploadComplete }: FileUploadProps) {
   const [bytesProgress, setBytesProgress] = useState({ uploaded: 0, total: 0 });
   const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const folderInputRef = useRef<HTMLInputElement>(null);
+  const [zipping, setZipping] = useState(false);
+  const [zipProgress, setZipProgress] = useState(0);
 
   // Text snippet state
   const [textStep, setTextStep] = useState<"closed" | "compose" | "passkey" | "saving">("closed");
