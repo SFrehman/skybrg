@@ -128,15 +128,36 @@ export function FileUpload({ onUploadComplete }: FileUploadProps) {
         (meta) => setZipProgress(Math.round(meta.percent))
       );
       const zipFile = new File([blob], `${folderName}.zip`, { type: "application/zip" });
-      setPending([{ file: zipFile, displayName: folderName }]);
-      setStep("passkey");
-      setError("");
+      setZipping(false);
+      setZipProgress(0);
       toast.success(`Folder "${folderName}" ready`, {
-        description: `${files.length} files · ${(blob.size / 1024 / 1024).toFixed(2)} MB. Enter your passkey to upload.`,
+        description: `${files.length} files · ${(blob.size / 1024 / 1024).toFixed(2)} MB. Uploading…`,
       });
+      // Skip passkey + name dialogs — upload immediately
+      const stamp = Date.now();
+      const filePath = `uploads/${stamp}_${zipFile.name}`;
+      const totalBytes = zipFile.size;
+      const uploadingToast = toast.loading(`Uploading "${folderName}"…`, {
+        description: `0 / ${(totalBytes / 1024 / 1024).toFixed(1)} MB`,
+      });
+      await uploadFileFast("user-files", filePath, zipFile, (uploaded) => {
+        toast.loading(`Uploading "${folderName}"…`, {
+          id: uploadingToast,
+          description: `${(uploaded / 1024 / 1024).toFixed(1)} / ${(totalBytes / 1024 / 1024).toFixed(1)} MB`,
+        });
+      });
+      const { error: dbError } = await supabase.from("files").insert({
+        file_name: zipFile.name,
+        display_name: folderName,
+        file_type: "application/zip",
+        file_size: zipFile.size,
+        storage_path: filePath,
+      });
+      if (dbError) throw dbError;
+      toast.success(`Folder "${folderName}" uploaded`, { id: uploadingToast });
+      onUploadComplete();
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Failed to package folder";
-      setError(msg);
       toast.error(msg);
     } finally {
       setZipping(false);
