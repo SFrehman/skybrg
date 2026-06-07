@@ -1,6 +1,7 @@
 import { Outlet, Link, createRootRoute, HeadContent, Scripts } from "@tanstack/react-router";
 
 import appCss from "../styles.css?url";
+import { Toaster } from "@/components/ui/sonner";
 
 const themeInitScript = `try{var theme=localStorage.getItem("filevault_theme")==="dark"?"dark":"light";document.documentElement.classList.toggle("dark",theme==="dark");}catch(_error){document.documentElement.classList.remove("dark");}`;
 
@@ -74,5 +75,10 @@ function RootShell({ children }: { children: React.ReactNode }) {
 }
 
 function RootComponent() {
-  return <Outlet />;
+  return (
+    <>
+      <Outlet />
+      <Toaster richColors position="top-center" />
+    </>
+  );
 }
