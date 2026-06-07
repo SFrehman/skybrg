@@ -8,7 +8,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { supabase } from "@/integrations/supabase/client";
 import { validatePasskey } from "@/lib/passkey";
 import { uploadFileFast } from "@/lib/resumable-upload";
-import { Upload, FileUp, Lock, X, Eye, EyeOff, ClipboardType } from "lucide-react";
+import { Upload, FileUp, Lock, X, Eye, EyeOff, ClipboardType, FolderUp, Loader2 } from "lucide-react";
+import JSZip from "jszip";
 
 interface FileUploadProps {
   onUploadComplete: () => void;
@@ -30,6 +31,9 @@ export function FileUpload({ onUploadComplete }: FileUploadProps) {
   const [bytesProgress, setBytesProgress] = useState({ uploaded: 0, total: 0 });
   const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const folderInputRef = useRef<HTMLInputElement>(null);
+  const [zipping, setZipping] = useState(false);
+  const [zipProgress, setZipProgress] = useState(0);
 
   // Text snippet state
   const [textStep, setTextStep] = useState<"closed" | "compose" | "passkey" | "saving">("closed");
@@ -98,6 +102,41 @@ export function FileUpload({ onUploadComplete }: FileUploadProps) {
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) addFiles(e.target.files);
+  };
+
+  const handleFolderSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const list = e.target.files;
+    if (!list || list.length === 0) return;
+    const files = Array.from(list);
+    // Derive folder name from the first file's relative path
+    const firstRel = (files[0] as File & { webkitRelativePath?: string }).webkitRelativePath || files[0].name;
+    const folderName = firstRel.split("/")[0] || "folder";
+
+    setZipping(true);
+    setZipProgress(0);
+    try {
+      const zip = new JSZip();
+      for (const f of files) {
+        const rel = (f as File & { webkitRelativePath?: string }).webkitRelativePath || f.name;
+        // Strip the top-level folder so the zip extracts cleanly
+        const inner = rel.includes("/") ? rel.substring(rel.indexOf("/") + 1) : rel;
+        zip.file(inner, f);
+      }
+      const blob = await zip.generateAsync(
+        { type: "blob", compression: "DEFLATE", compressionOptions: { level: 6 } },
+        (meta) => setZipProgress(Math.round(meta.percent))
+      );
+      const zipFile = new File([blob], `${folderName}.zip`, { type: "application/zip" });
+      setPending([{ file: zipFile, displayName: folderName }]);
+      setStep("passkey");
+      setError("");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to zip folder");
+    } finally {
+      setZipping(false);
+      setZipProgress(0);
+      if (folderInputRef.current) folderInputRef.current.value = "";
+    }
   };
 
   const handleDrop = (e: React.DragEvent) => {
@@ -237,7 +276,30 @@ export function FileUpload({ onUploadComplete }: FileUploadProps) {
             className="hidden"
             onChange={handleFileSelect}
           />
-          <div className="mt-3">
+          <input
+            ref={folderInputRef}
+            type="file"
+            className="hidden"
+            onChange={(e) => void handleFolderSelect(e)}
+            // @ts-expect-error non-standard but widely supported attributes
+            webkitdirectory=""
+            directory=""
+            mozdirectory=""
+          />
+          <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full gap-2"
+              onClick={() => folderInputRef.current?.click()}
+              disabled={zipping}
+            >
+              {zipping ? (
+                <><Loader2 className="h-4 w-4 animate-spin" /> Zipping {zipProgress}%</>
+              ) : (
+                <><FolderUp className="h-4 w-4" /> Upload folder (zip)</>
+              )}
+            </Button>
             <Button
               type="button"
               variant="outline"
