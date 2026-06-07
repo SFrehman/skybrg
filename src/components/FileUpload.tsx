@@ -10,6 +10,7 @@ import { validatePasskey } from "@/lib/passkey";
 import { uploadFileFast } from "@/lib/resumable-upload";
 import { Upload, FileUp, Lock, X, Eye, EyeOff, ClipboardType, FolderUp, Loader2 } from "lucide-react";
 import JSZip from "jszip";
+import { toast } from "sonner";
 
 interface FileUploadProps {
   onUploadComplete: () => void;
@@ -130,11 +131,13 @@ export function FileUpload({ onUploadComplete }: FileUploadProps) {
       setPending([{ file: zipFile, displayName: folderName }]);
       setStep("passkey");
       setError("");
-      window.alert(`Folder "${folderName}" packaged (${files.length} files, ${(blob.size / 1024 / 1024).toFixed(2)} MB). Enter your passkey to upload.`);
+      toast.success(`Folder "${folderName}" ready`, {
+        description: `${files.length} files · ${(blob.size / 1024 / 1024).toFixed(2)} MB. Enter your passkey to upload.`,
+      });
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Failed to package folder";
       setError(msg);
-      window.alert(msg);
+      toast.error(msg);
     } finally {
       setZipping(false);
       setZipProgress(0);
