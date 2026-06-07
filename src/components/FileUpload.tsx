@@ -130,8 +130,11 @@ export function FileUpload({ onUploadComplete }: FileUploadProps) {
       setPending([{ file: zipFile, displayName: folderName }]);
       setStep("passkey");
       setError("");
+      window.alert(`Folder "${folderName}" packaged (${files.length} files, ${(blob.size / 1024 / 1024).toFixed(2)} MB). Enter your passkey to upload.`);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to zip folder");
+      const msg = err instanceof Error ? err.message : "Failed to package folder";
+      setError(msg);
+      window.alert(msg);
     } finally {
       setZipping(false);
       setZipProgress(0);
@@ -295,9 +298,9 @@ export function FileUpload({ onUploadComplete }: FileUploadProps) {
               disabled={zipping}
             >
               {zipping ? (
-                <><Loader2 className="h-4 w-4 animate-spin" /> Zipping {zipProgress}%</>
+                <><Loader2 className="h-4 w-4 animate-spin" /> Packaging {zipProgress}%</>
               ) : (
-                <><FolderUp className="h-4 w-4" /> Upload folder (zip)</>
+                <><FolderUp className="h-4 w-4" /> Upload folder</>
               )}
             </Button>
             <Button
