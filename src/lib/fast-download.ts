@@ -26,8 +26,22 @@ async function streamToBlob(
   return new Blob(parts);
 }
 
-export async function downloadFileFast(url: string, fileName: string): Promise<void> {
+export interface DownloadProgress {
+  loaded: number;
+  total: number;
+  percent: number;
+}
+
+export async function downloadFileFast(
+  url: string,
+  fileName: string,
+  onProgress?: (p: DownloadProgress) => void,
+): Promise<void> {
   const toastId = toast.loading(`Downloading "${fileName}"…`, { description: "Starting…" });
+  const emit = (loaded: number, total: number) => {
+    const percent = total ? Math.min(100, Math.round((loaded / total) * 100)) : 0;
+    onProgress?.({ loaded, total, percent });
+  };
   try {
     // Probe with a tiny range request — also gives us total size via Content-Range.
     const probe = await fetch(url, { headers: { Range: "bytes=0-0" } });
@@ -55,6 +69,7 @@ export async function downloadFileFast(url: string, fileName: string): Promise<v
         id: toastId,
         description: total ? `${mb(loaded)} / ${mb(total)} MB` : `${mb(loaded)} MB`,
       });
+      emit(loaded, total);
     };
 
     let blob: Blob;
@@ -96,6 +111,7 @@ export async function downloadFileFast(url: string, fileName: string): Promise<v
     document.body.removeChild(a);
     setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
     toast.success(`Downloaded "${fileName}"`, { id: toastId });
+    emit(total || loaded, total || loaded);
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Download failed";
     toast.error(`Download failed: ${msg}`, { id: toastId });
