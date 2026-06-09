@@ -9,6 +9,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { supabase } from "@/integrations/supabase/client";
 import { Image, Video, FileText, File, Download, Trash2, Loader2, Lock, Eye, EyeOff, CheckSquare, Square, Copy, Check, ClipboardType } from "lucide-react";
 import { validatePasskey } from "@/lib/passkey";
+import { downloadFileFast } from "@/lib/fast-download";
 
 interface FileRecord {
   id: string;
@@ -115,26 +116,7 @@ function FileCard({ file, onDelete, selectMode, selected, onToggleSelect, onLong
           download: file.file_name,
         }).data.publicUrl
       : url;
-    try {
-      const response = await fetch(downloadUrl);
-      if (!response.ok) throw new Error("Download failed");
-      const blob = await response.blob();
-      const blobUrl = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = blobUrl;
-      a.download = file.file_name;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(blobUrl);
-    } catch {
-      const a = document.createElement("a");
-      a.href = downloadUrl;
-      a.download = file.file_name;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-    }
+    await downloadFileFast(downloadUrl, file.file_name);
   };
 
   const handleCopy = async () => {
