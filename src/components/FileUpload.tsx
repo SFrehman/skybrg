@@ -105,23 +105,17 @@ export function FileUpload({ onUploadComplete }: FileUploadProps) {
     if (e.target.files) addFiles(e.target.files);
   };
 
-  const handleFolderSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const list = e.target.files;
-    if (!list || list.length === 0) return;
-    const files = Array.from(list);
-    // Derive folder name from the first file's relative path
-    const firstRel = (files[0] as File & { webkitRelativePath?: string }).webkitRelativePath || files[0].name;
-    const folderName = firstRel.split("/")[0] || "folder";
+  type RelFile = { file: File; relPath: string };
 
+  const zipAndUploadFolder = async (folderName: string, entries: RelFile[]) => {
+    if (entries.length === 0) return;
     setZipping(true);
     setZipProgress(0);
     try {
       const zip = new JSZip();
-      for (const f of files) {
-        const rel = (f as File & { webkitRelativePath?: string }).webkitRelativePath || f.name;
-        // Strip the top-level folder so the zip extracts cleanly
-        const inner = rel.includes("/") ? rel.substring(rel.indexOf("/") + 1) : rel;
-        zip.file(inner, f);
+      for (const { file, relPath } of entries) {
+        const inner = relPath.includes("/") ? relPath.substring(relPath.indexOf("/") + 1) : relPath;
+        zip.file(inner, file);
       }
       const blob = await zip.generateAsync(
         { type: "blob", compression: "DEFLATE", compressionOptions: { level: 6 } },
@@ -131,9 +125,8 @@ export function FileUpload({ onUploadComplete }: FileUploadProps) {
       setZipping(false);
       setZipProgress(0);
       toast.success(`Folder "${folderName}" ready`, {
-        description: `${files.length} files · ${(blob.size / 1024 / 1024).toFixed(2)} MB. Uploading…`,
+        description: `${entries.length} files · ${(blob.size / 1024 / 1024).toFixed(2)} MB. Uploading…`,
       });
-      // Skip passkey + name dialogs — upload immediately
       const stamp = Date.now();
       const filePath = `uploads/${stamp}_${zipFile.name}`;
       const totalBytes = zipFile.size;
@@ -162,13 +155,96 @@ export function FileUpload({ onUploadComplete }: FileUploadProps) {
     } finally {
       setZipping(false);
       setZipProgress(0);
+    }
+  };
+
+  const handleFolderSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const list = e.target.files;
+    if (!list || list.length === 0) return;
+    const files = Array.from(list);
+    const firstRel = (files[0] as File & { webkitRelativePath?: string }).webkitRelativePath || files[0].name;
+    const folderName = firstRel.split("/")[0] || "folder";
+    const entries: RelFile[] = files.map((f) => ({
+      file: f,
+      relPath: (f as File & { webkitRelativePath?: string }).webkitRelativePath || f.name,
+    }));
+    try {
+      await zipAndUploadFolder(folderName, entries);
+    } finally {
       if (folderInputRef.current) folderInputRef.current.value = "";
     }
   };
 
-  const handleDrop = (e: React.DragEvent) => {
+  // Recursively read a dropped DirectoryEntry into RelFile[]
+  const readEntry = (entry: FileSystemEntry, pathPrefix: string): Promise<RelFile[]> => {
+    return new Promise((resolve, reject) => {
+      if (entry.isFile) {
+        (entry as FileSystemFileEntry).file(
+          (file) => resolve([{ file, relPath: `${pathPrefix}${entry.name}` }]),
+          reject,
+        );
+      } else if (entry.isDirectory) {
+        const reader = (entry as FileSystemDirectoryEntry).createReader();
+        const all: FileSystemEntry[] = [];
+        const readBatch = () => {
+          reader.readEntries(async (batch) => {
+            if (batch.length === 0) {
+              try {
+                const nested = await Promise.all(
+                  all.map((c) => readEntry(c, `${pathPrefix}${entry.name}/`)),
+                );
+                resolve(nested.flat());
+              } catch (e) { reject(e); }
+            } else {
+              all.push(...batch);
+              readBatch();
+            }
+          }, reject);
+        };
+        readBatch();
+      } else {
+        resolve([]);
+      }
+    });
+  };
+
+  const handleDrop = async (e: React.DragEvent) => {
     e.preventDefault();
     setIsDragging(false);
+    const items = e.dataTransfer.items;
+    if (items && items.length > 0) {
+      const topEntries: FileSystemEntry[] = [];
+      for (let i = 0; i < items.length; i++) {
+        const it = items[i];
+        if (it.kind !== "file") continue;
+        const entry = it.webkitGetAsEntry?.();
+        if (entry) topEntries.push(entry);
+      }
+      const dirEntries = topEntries.filter((en) => en.isDirectory);
+      if (dirEntries.length > 0) {
+        try {
+          for (const dir of dirEntries) {
+            const files = await readEntry(dir, "");
+            await zipAndUploadFolder(dir.name, files);
+          }
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : "Failed to read folder";
+          toast.error(msg);
+        }
+        // Also handle any plain files dropped alongside folders
+        const plainFiles: File[] = [];
+        for (let i = 0; i < items.length; i++) {
+          const it = items[i];
+          const entry = it.webkitGetAsEntry?.();
+          if (entry && entry.isFile) {
+            const f = it.getAsFile();
+            if (f) plainFiles.push(f);
+          }
+        }
+        if (plainFiles.length > 0) addFiles(plainFiles);
+        return;
+      }
+    }
     if (e.dataTransfer.files) addFiles(e.dataTransfer.files);
   };
 
@@ -292,9 +368,9 @@ export function FileUpload({ onUploadComplete }: FileUploadProps) {
           >
             <FileUp className="h-10 w-10 text-muted-foreground mb-3" />
             <p className="text-sm font-medium text-foreground">
-              {isDragging ? "Drop files here" : "Click or drag files to upload"}
+              {isDragging ? "Drop files or a folder here" : "Click or drag files / folders to upload"}
             </p>
-            <p className="text-xs text-muted-foreground mt-1">Multiple files supported</p>
+            <p className="text-xs text-muted-foreground mt-1">Drop a folder to auto-zip & upload</p>
           </div>
           <input
             ref={fileInputRef}
