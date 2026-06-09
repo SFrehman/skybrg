@@ -2,18 +2,54 @@ import { toast } from "sonner";
 
 const CHUNK_SIZE = 5 * 1024 * 1024; // 5 MB per range
 const CONCURRENCY = 6;
+const PARALLEL_THRESHOLD = 12 * 1024 * 1024; // only bother >12MB
+
+const mb = (n: number) => (n / 1024 / 1024).toFixed(1);
+
+async function streamToBlob(
+  res: Response,
+  onChunk: (n: number) => void,
+): Promise<Blob> {
+  const reader = res.body?.getReader();
+  if (!reader) {
+    const b = await res.blob();
+    onChunk(b.size);
+    return b;
+  }
+  const parts: BlobPart[] = [];
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    parts.push(value);
+    onChunk(value.byteLength);
+  }
+  return new Blob(parts);
+}
 
 export async function downloadFileFast(url: string, fileName: string): Promise<void> {
-  const toastId = toast.loading(`Preparing "${fileName}"…`);
+  const toastId = toast.loading(`Downloading "${fileName}"…`, { description: "Starting…" });
   try {
-    // HEAD to learn size + range support
-    const head = await fetch(url, { method: "HEAD" });
-    if (!head.ok) throw new Error(`HTTP ${head.status}`);
-    const total = Number(head.headers.get("content-length") || 0);
-    const acceptRanges = (head.headers.get("accept-ranges") || "").toLowerCase().includes("bytes");
+    // Probe with a tiny range request — also gives us total size via Content-Range.
+    const probe = await fetch(url, { headers: { Range: "bytes=0-0" } });
+    if (!probe.ok && probe.status !== 206 && probe.status !== 200) {
+      throw new Error(`HTTP ${probe.status}`);
+    }
+    let total = 0;
+    let acceptRanges = false;
+    const contentRange = probe.headers.get("content-range");
+    if (probe.status === 206 && contentRange) {
+      const m = /\/(\d+)$/.exec(contentRange);
+      if (m) total = Number(m[1]);
+      acceptRanges = true;
+    } else {
+      total = Number(probe.headers.get("content-length") || 0);
+    }
+    // Drain the probe body so the connection can be reused/closed.
+    try { await probe.arrayBuffer(); } catch { /* ignore */ }
 
-    const mb = (n: number) => (n / 1024 / 1024).toFixed(1);
-    const updateProgress = (loaded: number) => {
+    let loaded = 0;
+    const tick = (delta: number) => {
+      loaded += delta;
       const pct = total ? Math.round((loaded / total) * 100) : 0;
       toast.loading(`Downloading "${fileName}"… ${pct}%`, {
         id: toastId,
@@ -23,16 +59,14 @@ export async function downloadFileFast(url: string, fileName: string): Promise<v
 
     let blob: Blob;
 
-    if (acceptRanges && total > CHUNK_SIZE * 2) {
+    if (acceptRanges && total > PARALLEL_THRESHOLD) {
       // Parallel range download
       const ranges: Array<[number, number]> = [];
       for (let start = 0; start < total; start += CHUNK_SIZE) {
         ranges.push([start, Math.min(start + CHUNK_SIZE - 1, total - 1)]);
       }
       const chunks = new Array<Uint8Array>(ranges.length);
-      const loadedPer = new Array<number>(ranges.length).fill(0);
       let cursor = 0;
-
       const worker = async () => {
         while (true) {
           const i = cursor++;
@@ -40,53 +74,17 @@ export async function downloadFileFast(url: string, fileName: string): Promise<v
           const [s, e] = ranges[i];
           const res = await fetch(url, { headers: { Range: `bytes=${s}-${e}` } });
           if (!res.ok && res.status !== 206) throw new Error(`HTTP ${res.status}`);
-          const reader = res.body?.getReader();
-          if (!reader) {
-            const buf = new Uint8Array(await res.arrayBuffer());
-            chunks[i] = buf;
-            loadedPer[i] = buf.byteLength;
-            updateProgress(loadedPer.reduce((a, b) => a + b, 0));
-            continue;
-          }
-          const parts: Uint8Array[] = [];
-          let received = 0;
-          while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
-            parts.push(value);
-            received += value.byteLength;
-            loadedPer[i] = received;
-            updateProgress(loadedPer.reduce((a, b) => a + b, 0));
-          }
-          const merged = new Uint8Array(received);
-          let off = 0;
-          for (const p of parts) { merged.set(p, off); off += p.byteLength; }
-          chunks[i] = merged;
+          const partBlob = await streamToBlob(res, tick);
+          chunks[i] = new Uint8Array(await partBlob.arrayBuffer());
         }
       };
-
       await Promise.all(Array.from({ length: Math.min(CONCURRENCY, ranges.length) }, worker));
       blob = new Blob(chunks as BlobPart[]);
     } else {
-      // Streamed single download with progress
       const res = await fetch(url);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const reader = res.body?.getReader();
-      if (!reader) {
-        blob = await res.blob();
-        updateProgress(blob.size);
-      } else {
-        const parts: Uint8Array[] = [];
-        let loaded = 0;
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          parts.push(value);
-          loaded += value.byteLength;
-          updateProgress(loaded);
-        }
-        blob = new Blob(parts as BlobPart[]);
-      }
+      if (!total) total = Number(res.headers.get("content-length") || 0);
+      blob = await streamToBlob(res, tick);
     }
 
     const blobUrl = URL.createObjectURL(blob);
@@ -101,12 +99,7 @@ export async function downloadFileFast(url: string, fileName: string): Promise<v
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Download failed";
     toast.error(`Download failed: ${msg}`, { id: toastId });
-    // Fallback to direct browser download
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = fileName;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
+    // Fallback: open in a new tab so the browser handles it natively
+    window.open(url, "_blank");
   }
 }
