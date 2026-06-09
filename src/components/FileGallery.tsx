@@ -9,7 +9,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { supabase } from "@/integrations/supabase/client";
 import { Image, Video, FileText, File, Download, Trash2, Loader2, Lock, Eye, EyeOff, CheckSquare, Square, Copy, Check, ClipboardType } from "lucide-react";
 import { validatePasskey } from "@/lib/passkey";
-import { downloadFileFast } from "@/lib/fast-download";
+import { downloadFileFast, type DownloadProgress } from "@/lib/fast-download";
 
 interface FileRecord {
   id: string;
@@ -65,6 +65,8 @@ function FileCard({ file, onDelete, selectMode, selected, onToggleSelect, onLong
   const [checkingPasskey, setCheckingPasskey] = useState(false);
   const [copied, setCopied] = useState(false);
   const [showTextDialog, setShowTextDialog] = useState(false);
+  const [downloading, setDownloading] = useState(false);
+  const [dlProgress, setDlProgress] = useState<DownloadProgress | null>(null);
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const longPressTriggered = useRef(false);
 
@@ -116,7 +118,14 @@ function FileCard({ file, onDelete, selectMode, selected, onToggleSelect, onLong
           download: file.file_name,
         }).data.publicUrl
       : url;
-    await downloadFileFast(downloadUrl, file.file_name);
+    setDownloading(true);
+    setDlProgress({ loaded: 0, total: file.file_size, percent: 0 });
+    try {
+      await downloadFileFast(downloadUrl, file.file_name, (p) => setDlProgress(p));
+    } finally {
+      setDownloading(false);
+      setTimeout(() => setDlProgress(null), 1200);
+    }
   };
 
   const handleCopy = async () => {
@@ -160,6 +169,26 @@ function FileCard({ file, onDelete, selectMode, selected, onToggleSelect, onLong
           }
         }}
       >
+        {downloading && dlProgress && (
+          <div className="absolute inset-x-0 top-0 z-20 bg-background/95 backdrop-blur-sm border-b border-border px-3 py-2 space-y-1.5">
+            <div className="flex items-center justify-between text-xs">
+              <span className="flex items-center gap-1.5 font-medium text-foreground">
+                <Loader2 className="h-3 w-3 animate-spin text-primary" />
+                Downloading {dlProgress.percent}%
+              </span>
+              <span className="text-muted-foreground tabular-nums">
+                {formatSize(dlProgress.loaded)}
+                {dlProgress.total ? ` / ${formatSize(dlProgress.total)}` : ""}
+              </span>
+            </div>
+            <div className="h-1.5 w-full rounded-full bg-muted overflow-hidden">
+              <div
+                className="h-full bg-primary transition-all"
+                style={{ width: `${dlProgress.percent}%` }}
+              />
+            </div>
+          </div>
+        )}
         {selectMode && (
           <div className="absolute top-2 left-2 z-10 bg-background/90 rounded p-1">
             <Checkbox checked={selected} onCheckedChange={onToggleSelect} />
@@ -184,8 +213,8 @@ function FileCard({ file, onDelete, selectMode, selected, onToggleSelect, onLong
                   {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
                 </Button>
               ) : (
-                <Button size="icon" variant="secondary" onClick={(e) => { e.stopPropagation(); void handleDownload(); }} className="h-9 w-9">
-                  <Download className="h-4 w-4" />
+                <Button size="icon" variant="secondary" onClick={(e) => { e.stopPropagation(); void handleDownload(); }} className="h-9 w-9" disabled={downloading}>
+                  {downloading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
                 </Button>
               )}
               <Button size="icon" variant="destructive" onClick={(e) => { e.stopPropagation(); setShowDeleteDialog(true); }} disabled={deleting} className="h-9 w-9">
@@ -204,8 +233,12 @@ function FileCard({ file, onDelete, selectMode, selected, onToggleSelect, onLong
                   {copied ? <Check className="h-3.5 w-3.5 shrink-0" /> : <Copy className="h-3.5 w-3.5 shrink-0" />}
                 </Button>
               ) : (
-                <Button size="sm" variant="secondary" onClick={(e) => { e.stopPropagation(); void handleDownload(); }} className="flex-1 gap-1 px-2 min-w-0">
-                  <Download className="h-3.5 w-3.5 shrink-0" />
+                <Button size="sm" variant="secondary" onClick={(e) => { e.stopPropagation(); void handleDownload(); }} className="flex-1 gap-1 px-2 min-w-0" disabled={downloading}>
+                  {downloading ? (
+                    <><Loader2 className="h-3.5 w-3.5 animate-spin shrink-0" /> <span className="tabular-nums">{dlProgress?.percent ?? 0}%</span></>
+                  ) : (
+                    <Download className="h-3.5 w-3.5 shrink-0" />
+                  )}
                 </Button>
               )}
               <Button size="sm" variant="destructive" onClick={(e) => { e.stopPropagation(); setShowDeleteDialog(true); }} disabled={deleting} className="flex-1 gap-1 px-2 min-w-0">
