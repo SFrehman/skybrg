@@ -368,9 +368,9 @@ export function FileUpload({ onUploadComplete }: FileUploadProps) {
           >
             <FileUp className="h-10 w-10 text-muted-foreground mb-3" />
             <p className="text-sm font-medium text-foreground">
-              {isDragging ? "Drop files here" : "Click or drag files to upload"}
+              {isDragging ? "Drop files or a folder here" : "Click or drag files / folders to upload"}
             </p>
-            <p className="text-xs text-muted-foreground mt-1">Multiple files supported</p>
+            <p className="text-xs text-muted-foreground mt-1">Drop a folder to auto-zip & upload</p>
           </div>
           <input
             ref={fileInputRef}
