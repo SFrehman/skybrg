@@ -3,20 +3,46 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Upload, Eye, EyeOff } from "lucide-react";
+import { Upload, Eye, EyeOff, Loader2, ArrowLeft } from "lucide-react";
 import introVideo from "@/assets/intro.mp4";
+import { supabase } from "@/integrations/supabase/client";
+
+type Step = "roll" | "password" | "verify" | "create";
+
+interface Student {
+  college_roll: string;
+  uni_roll: string;
+  name: string;
+  short_name: string;
+  password_hash: string | null;
+}
+
+async function sha256(text: string): Promise<string> {
+  const buf = new TextEncoder().encode(text);
+  const hash = await crypto.subtle.digest("SHA-256", buf);
+  return Array.from(new Uint8Array(hash))
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+}
+
+const hashPw = (pw: string, roll: string) => sha256(pw.trim() + ":" + roll.trim());
 
 export function LoginForm({ onSuccess }: { onSuccess: () => void }) {
-  const [username, setUsername] = useState("");
+  const [step, setStep] = useState<Step>("roll");
+  const [collegeRoll, setCollegeRoll] = useState("");
+  const [uniRoll, setUniRoll] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPw, setConfirmPw] = useState("");
+  const [student, setStudent] = useState<Student | null>(null);
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+
   const [introDone, setIntroDone] = useState(false);
   const [introReady, setIntroReady] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
 
   useEffect(() => {
-    // Fully buffer the video before starting playback to avoid mid-play stalls
     const xhr = new XMLHttpRequest();
     xhr.open("GET", introVideo, true);
     xhr.responseType = "blob";
@@ -31,16 +57,76 @@ export function LoginForm({ onSuccess }: { onSuccess: () => void }) {
     xhr.send();
   }, []);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const finishLogin = (s: Student) => {
+    localStorage.setItem("filevault_auth", "true");
+    localStorage.setItem("filevault_user", s.short_name);
+    localStorage.setItem("filevault_roll", s.college_roll);
+    onSuccess();
+  };
+
+  const handleRollSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
+    setLoading(true);
+    const roll = collegeRoll.trim();
+    const { data, error: err } = await supabase
+      .from("students")
+      .select("college_roll, uni_roll, name, short_name, password_hash")
+      .eq("college_roll", roll)
+      .maybeSingle();
+    setLoading(false);
+    if (err) { setError("Something went wrong. Try again."); return; }
+    if (!data) { setError("This college roll number is not allowed."); return; }
+    setStudent(data as Student);
+    setStep(data.password_hash ? "password" : "verify");
+  };
 
-    if (username === "Saif" && password === "jani") {
-      localStorage.setItem("filevault_auth", "true");
-      onSuccess();
-    } else {
-      setError("Invalid username or password");
+  const handlePasswordSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!student) return;
+    setError("");
+    setLoading(true);
+    const h = await hashPw(password, student.college_roll);
+    setLoading(false);
+    if (h !== student.password_hash) { setError("Incorrect password"); return; }
+    finishLogin(student);
+  };
+
+  const handleVerifySubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!student) return;
+    setError("");
+    if (uniRoll.trim() !== student.uni_roll) {
+      setError("University roll number does not match");
+      return;
     }
+    setStep("create");
+  };
+
+  const handleCreateSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!student) return;
+    setError("");
+    if (password.length < 4) { setError("Password must be at least 4 characters"); return; }
+    if (password !== confirmPw) { setError("Passwords do not match"); return; }
+    setLoading(true);
+    const h = await hashPw(password, student.college_roll);
+    const { error: err } = await supabase
+      .from("students")
+      .update({ password_hash: h, updated_at: new Date().toISOString() })
+      .eq("college_roll", student.college_roll);
+    setLoading(false);
+    if (err) { setError("Could not save password. Try again."); return; }
+    finishLogin({ ...student, password_hash: h });
+  };
+
+  const goBack = () => {
+    setError("");
+    setPassword("");
+    setConfirmPw("");
+    setUniRoll("");
+    setStudent(null);
+    setStep("roll");
   };
 
   return (
@@ -65,57 +151,156 @@ export function LoginForm({ onSuccess }: { onSuccess: () => void }) {
         />
       )}
       <div className="w-full max-w-md">
-      <Card className="w-full max-w-md shadow-xl border-border/50">
-        <CardHeader className="text-center space-y-3">
-          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-primary text-primary-foreground">
-            <Upload className="h-7 w-7" />
-          </div>
-          <CardTitle className="text-2xl font-bold text-foreground">Welcome Back</CardTitle>
-          <CardDescription className="text-muted-foreground">Sign in to access your files</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="username">Username</Label>
-              <Input
-                id="username"
-                type="text"
-                placeholder="Enter username"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                required
-              />
+        <Card className="w-full max-w-md shadow-xl border-border/50">
+          <CardHeader className="text-center space-y-3">
+            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-primary text-primary-foreground">
+              <Upload className="h-7 w-7" />
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="password">Password</Label>
-              <div className="relative">
-                <Input
-                  id="password"
-                  type={showPassword ? "text" : "password"}
-                  placeholder="••••••••"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  required
-                  className="pr-10"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
-                >
-                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                </button>
-              </div>
-            </div>
-
-            {error && (
-              <p className="text-sm text-destructive bg-destructive/10 p-3 rounded-lg">{error}</p>
+            <CardTitle className="text-2xl font-bold text-foreground">
+              {step === "roll" && "Sign In"}
+              {step === "password" && `Welcome, ${student?.short_name}`}
+              {step === "verify" && "Verify Identity"}
+              {step === "create" && "Create Password"}
+            </CardTitle>
+            <CardDescription className="text-muted-foreground">
+              {step === "roll" && "Enter your college roll number to continue"}
+              {step === "password" && "Enter your password to sign in"}
+              {step === "verify" && "Enter your university roll number to confirm it's you"}
+              {step === "create" && "Set a password for future logins"}
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {step === "roll" && (
+              <form onSubmit={handleRollSubmit} className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="croll">College Roll No</Label>
+                  <Input
+                    id="croll"
+                    type="text"
+                    inputMode="numeric"
+                    placeholder="e.g. 224"
+                    value={collegeRoll}
+                    onChange={(e) => setCollegeRoll(e.target.value)}
+                    required
+                    autoFocus
+                  />
+                </div>
+                {error && <p className="text-sm text-destructive bg-destructive/10 p-3 rounded-lg">{error}</p>}
+                <Button type="submit" className="w-full" disabled={loading}>
+                  {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Continue"}
+                </Button>
+              </form>
             )}
 
-            <Button type="submit" className="w-full">Sign In</Button>
-          </form>
-        </CardContent>
-      </Card>
+            {step === "password" && (
+              <form onSubmit={handlePasswordSubmit} className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="pw">Password</Label>
+                  <div className="relative">
+                    <Input
+                      id="pw"
+                      type={showPassword ? "text" : "password"}
+                      placeholder="••••••••"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      required
+                      autoFocus
+                      className="pr-10"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                    >
+                      {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
+                  </div>
+                </div>
+                {error && <p className="text-sm text-destructive bg-destructive/10 p-3 rounded-lg">{error}</p>}
+                <div className="flex gap-2">
+                  <Button type="button" variant="outline" onClick={goBack} className="flex-1">
+                    <ArrowLeft className="h-4 w-4 mr-1.5" /> Back
+                  </Button>
+                  <Button type="submit" className="flex-1" disabled={loading}>
+                    {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Sign In"}
+                  </Button>
+                </div>
+              </form>
+            )}
+
+            {step === "verify" && (
+              <form onSubmit={handleVerifySubmit} className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="uroll">University Roll No</Label>
+                  <Input
+                    id="uroll"
+                    type="text"
+                    inputMode="numeric"
+                    placeholder="e.g. 112010"
+                    value={uniRoll}
+                    onChange={(e) => setUniRoll(e.target.value)}
+                    required
+                    autoFocus
+                  />
+                </div>
+                {error && <p className="text-sm text-destructive bg-destructive/10 p-3 rounded-lg">{error}</p>}
+                <div className="flex gap-2">
+                  <Button type="button" variant="outline" onClick={goBack} className="flex-1">
+                    <ArrowLeft className="h-4 w-4 mr-1.5" /> Back
+                  </Button>
+                  <Button type="submit" className="flex-1">Verify</Button>
+                </div>
+              </form>
+            )}
+
+            {step === "create" && (
+              <form onSubmit={handleCreateSubmit} className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="npw">New Password</Label>
+                  <div className="relative">
+                    <Input
+                      id="npw"
+                      type={showPassword ? "text" : "password"}
+                      placeholder="At least 4 characters"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      required
+                      autoFocus
+                      className="pr-10"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                    >
+                      {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="cpw">Confirm Password</Label>
+                  <Input
+                    id="cpw"
+                    type={showPassword ? "text" : "password"}
+                    placeholder="Re-enter password"
+                    value={confirmPw}
+                    onChange={(e) => setConfirmPw(e.target.value)}
+                    required
+                  />
+                </div>
+                {error && <p className="text-sm text-destructive bg-destructive/10 p-3 rounded-lg">{error}</p>}
+                <div className="flex gap-2">
+                  <Button type="button" variant="outline" onClick={goBack} className="flex-1">
+                    <ArrowLeft className="h-4 w-4 mr-1.5" /> Back
+                  </Button>
+                  <Button type="submit" className="flex-1" disabled={loading}>
+                    {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Create & Sign In"}
+                  </Button>
+                </div>
+              </form>
+            )}
+          </CardContent>
+        </Card>
       </div>
     </div>
   );
