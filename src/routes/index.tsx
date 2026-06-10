@@ -15,7 +15,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { LogOut, Upload, Info, Menu } from "lucide-react";
+import { LogOut, Upload, Info, Menu, User, Shield } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 
 export const Route = createFileRoute("/")({
@@ -31,11 +31,13 @@ export const Route = createFileRoute("/")({
 function Index() {
   const [authed, setAuthed] = useState(false);
   const [userName, setUserName] = useState("");
+  const [isAdmin, setIsAdmin] = useState(false);
 
   useEffect(() => {
     if (typeof window !== "undefined" && localStorage.getItem("filevault_auth") === "true") {
       setAuthed(true);
       setUserName(localStorage.getItem("filevault_user") || "");
+      setIsAdmin(localStorage.getItem("filevault_roll") === "224");
     }
   }, []);
 
@@ -91,6 +93,7 @@ function Index() {
         onSuccess={() => {
           setAuthed(true);
           setUserName(localStorage.getItem("filevault_user") || "");
+          setIsAdmin(localStorage.getItem("filevault_roll") === "224");
         }}
       />
     );
@@ -119,6 +122,14 @@ function Index() {
             <span className="text-sm text-muted-foreground">{userName || "Student"}</span>
             <ThemeToggle />
             <Button variant="outline" size="sm" asChild>
+              <Link to="/profile"><User className="h-4 w-4 mr-1.5" /> Profile</Link>
+            </Button>
+            {isAdmin && (
+              <Button variant="outline" size="sm" asChild>
+                <Link to="/admin"><Shield className="h-4 w-4 mr-1.5" /> Admin</Link>
+              </Button>
+            )}
+            <Button variant="outline" size="sm" asChild>
               <Link to="/about"><Info className="h-4 w-4 mr-1.5" /> About</Link>
             </Button>
             <PasskeyReset />
@@ -138,6 +149,14 @@ function Index() {
               <DropdownMenuContent align="end" className="w-56">
                 <DropdownMenuLabel>{userName || "Student"}</DropdownMenuLabel>
                 <DropdownMenuSeparator />
+                <DropdownMenuItem asChild>
+                  <Link to="/profile"><User className="h-4 w-4 mr-2" /> Profile</Link>
+                </DropdownMenuItem>
+                {isAdmin && (
+                  <DropdownMenuItem asChild>
+                    <Link to="/admin"><Shield className="h-4 w-4 mr-2" /> Admin</Link>
+                  </DropdownMenuItem>
+                )}
                 <DropdownMenuItem asChild>
                   <Link to="/about"><Info className="h-4 w-4 mr-2" /> About</Link>
                 </DropdownMenuItem>
