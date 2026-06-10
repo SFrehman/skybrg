@@ -71,8 +71,45 @@ export type Database = {
         }
         Relationships: []
       }
+      signup_requests: {
+        Row: {
+          college_roll: string
+          created_at: string
+          id: string
+          name: string
+          short_name: string
+          status: string
+          uni_roll: string
+          updated_at: string
+          whatsapp: string
+        }
+        Insert: {
+          college_roll: string
+          created_at?: string
+          id?: string
+          name: string
+          short_name: string
+          status?: string
+          uni_roll: string
+          updated_at?: string
+          whatsapp: string
+        }
+        Update: {
+          college_roll?: string
+          created_at?: string
+          id?: string
+          name?: string
+          short_name?: string
+          status?: string
+          uni_roll?: string
+          updated_at?: string
+          whatsapp?: string
+        }
+        Relationships: []
+      }
       students: {
         Row: {
+          avatar_url: string | null
           college_roll: string
           created_at: string
           name: string
@@ -82,6 +119,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          avatar_url?: string | null
           college_roll: string
           created_at?: string
           name: string
@@ -91,6 +129,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          avatar_url?: string | null
           college_roll?: string
           created_at?: string
           name?: string
