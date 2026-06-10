@@ -7,7 +7,7 @@ import { Upload, Eye, EyeOff, Loader2, ArrowLeft } from "lucide-react";
 import introVideo from "@/assets/intro.mp4";
 import { supabase } from "@/integrations/supabase/client";
 
-type Step = "roll" | "password" | "verify" | "create";
+type Step = "roll" | "password" | "verify" | "create" | "request" | "request-sent";
 
 interface Student {
   college_roll: string;
@@ -37,6 +37,9 @@ export function LoginForm({ onSuccess }: { onSuccess: () => void }) {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [reqName, setReqName] = useState("");
+  const [reqShort, setReqShort] = useState("");
+  const [reqWhats, setReqWhats] = useState("");
 
   const [introDone, setIntroDone] = useState(false);
   const [introReady, setIntroReady] = useState(false);
@@ -76,7 +79,11 @@ export function LoginForm({ onSuccess }: { onSuccess: () => void }) {
       .maybeSingle();
     setLoading(false);
     if (err) { setError("Something went wrong. Try again."); return; }
-    if (!data) { setError("This college roll number is not allowed."); return; }
+    if (!data) {
+      // Not whitelisted — offer request flow
+      setStep("request");
+      return;
+    }
     setStudent(data as Student);
     setStep(data.password_hash ? "password" : "verify");
   };
@@ -126,7 +133,31 @@ export function LoginForm({ onSuccess }: { onSuccess: () => void }) {
     setConfirmPw("");
     setUniRoll("");
     setStudent(null);
+    setReqName("");
+    setReqShort("");
+    setReqWhats("");
     setStep("roll");
+  };
+
+  const handleRequestSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError("");
+    if (!reqName.trim() || !uniRoll.trim() || !reqWhats.trim()) {
+      setError("Please fill all fields"); return;
+    }
+    setLoading(true);
+    const shortName = (reqShort.trim() || reqName.trim().split(" ")[0]);
+    const { error: err } = await supabase.from("signup_requests").insert({
+      college_roll: collegeRoll.trim(),
+      uni_roll: uniRoll.trim(),
+      name: reqName.trim(),
+      short_name: shortName,
+      whatsapp: reqWhats.trim(),
+      status: "pending",
+    });
+    setLoading(false);
+    if (err) { setError("Could not send request. Try again."); return; }
+    setStep("request-sent");
   };
 
   return (
