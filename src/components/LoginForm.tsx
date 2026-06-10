@@ -7,7 +7,7 @@ import { Upload, Eye, EyeOff, Loader2, ArrowLeft } from "lucide-react";
 import introVideo from "@/assets/intro.mp4";
 import { supabase } from "@/integrations/supabase/client";
 
-type Step = "roll" | "password" | "verify" | "create";
+type Step = "roll" | "password" | "verify" | "create" | "request" | "request-sent";
 
 interface Student {
   college_roll: string;
@@ -37,6 +37,9 @@ export function LoginForm({ onSuccess }: { onSuccess: () => void }) {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [reqName, setReqName] = useState("");
+  const [reqShort, setReqShort] = useState("");
+  const [reqWhats, setReqWhats] = useState("");
 
   const [introDone, setIntroDone] = useState(false);
   const [introReady, setIntroReady] = useState(false);
@@ -76,7 +79,11 @@ export function LoginForm({ onSuccess }: { onSuccess: () => void }) {
       .maybeSingle();
     setLoading(false);
     if (err) { setError("Something went wrong. Try again."); return; }
-    if (!data) { setError("This college roll number is not allowed."); return; }
+    if (!data) {
+      // Not whitelisted — offer request flow
+      setStep("request");
+      return;
+    }
     setStudent(data as Student);
     setStep(data.password_hash ? "password" : "verify");
   };
@@ -126,7 +133,31 @@ export function LoginForm({ onSuccess }: { onSuccess: () => void }) {
     setConfirmPw("");
     setUniRoll("");
     setStudent(null);
+    setReqName("");
+    setReqShort("");
+    setReqWhats("");
     setStep("roll");
+  };
+
+  const handleRequestSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError("");
+    if (!reqName.trim() || !uniRoll.trim() || !reqWhats.trim()) {
+      setError("Please fill all fields"); return;
+    }
+    setLoading(true);
+    const shortName = (reqShort.trim() || reqName.trim().split(" ")[0]);
+    const { error: err } = await supabase.from("signup_requests").insert({
+      college_roll: collegeRoll.trim(),
+      uni_roll: uniRoll.trim(),
+      name: reqName.trim(),
+      short_name: shortName,
+      whatsapp: reqWhats.trim(),
+      status: "pending",
+    });
+    setLoading(false);
+    if (err) { setError("Could not send request. Try again."); return; }
+    setStep("request-sent");
   };
 
   return (
@@ -161,12 +192,16 @@ export function LoginForm({ onSuccess }: { onSuccess: () => void }) {
               {step === "password" && `Welcome, ${student?.short_name}`}
               {step === "verify" && "Verify Identity"}
               {step === "create" && "Create Password"}
+              {step === "request" && "Request Access"}
+              {step === "request-sent" && "Request Sent"}
             </CardTitle>
             <CardDescription className="text-muted-foreground">
               {step === "roll" && "Enter your college roll number to continue"}
               {step === "password" && "Enter your password to sign in"}
               {step === "verify" && "Enter your university roll number to confirm it's you"}
               {step === "create" && "Set a password for future logins"}
+              {step === "request" && "Your roll isn't whitelisted. Submit a request and admin will contact you on WhatsApp."}
+              {step === "request-sent" && "Admin will contact you on WhatsApp soon for verification."}
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -298,6 +333,49 @@ export function LoginForm({ onSuccess }: { onSuccess: () => void }) {
                   </Button>
                 </div>
               </form>
+            )}
+
+            {step === "request" && (
+              <form onSubmit={handleRequestSubmit} className="space-y-4">
+                <div className="space-y-2">
+                  <Label>College Roll No</Label>
+                  <Input value={collegeRoll} disabled />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="rname">Full Name</Label>
+                  <Input id="rname" value={reqName} onChange={(e) => setReqName(e.target.value)} required autoFocus />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="rshort">Short / First Name (optional)</Label>
+                  <Input id="rshort" value={reqShort} onChange={(e) => setReqShort(e.target.value)} placeholder="Shown after login" />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="ruroll">University Roll No</Label>
+                  <Input id="ruroll" value={uniRoll} onChange={(e) => setUniRoll(e.target.value)} required />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="rwh">WhatsApp Number</Label>
+                  <Input id="rwh" type="tel" inputMode="tel" placeholder="+91…" value={reqWhats} onChange={(e) => setReqWhats(e.target.value)} required />
+                </div>
+                {error && <p className="text-sm text-destructive bg-destructive/10 p-3 rounded-lg">{error}</p>}
+                <div className="flex gap-2">
+                  <Button type="button" variant="outline" onClick={goBack} className="flex-1">
+                    <ArrowLeft className="h-4 w-4 mr-1.5" /> Back
+                  </Button>
+                  <Button type="submit" className="flex-1" disabled={loading}>
+                    {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Send Request"}
+                  </Button>
+                </div>
+              </form>
+            )}
+
+            {step === "request-sent" && (
+              <div className="space-y-4">
+                <p className="text-sm text-muted-foreground bg-muted p-3 rounded-lg">
+                  Your request has been submitted. The admin will reach out to you on WhatsApp for verification. Once approved, you can sign in with your college roll number.
+                </p>
+                <Button onClick={goBack} className="w-full">Back to Sign In</Button>
+              </div>
             )}
           </CardContent>
         </Card>
