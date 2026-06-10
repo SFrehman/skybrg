@@ -30,10 +30,12 @@ export const Route = createFileRoute("/")({
 
 function Index() {
   const [authed, setAuthed] = useState(false);
+  const [userName, setUserName] = useState("");
 
   useEffect(() => {
     if (typeof window !== "undefined" && localStorage.getItem("filevault_auth") === "true") {
       setAuthed(true);
+      setUserName(localStorage.getItem("filevault_user") || "");
     }
   }, []);
 
@@ -84,11 +86,21 @@ function Index() {
   }, [authed, fetchFiles]);
 
   if (!authed) {
-    return <LoginForm onSuccess={() => setAuthed(true)} />;
+    return (
+      <LoginForm
+        onSuccess={() => {
+          setAuthed(true);
+          setUserName(localStorage.getItem("filevault_user") || "");
+        }}
+      />
+    );
   }
 
   const handleLogout = () => {
     localStorage.removeItem("filevault_auth");
+    localStorage.removeItem("filevault_user");
+    localStorage.removeItem("filevault_roll");
+    setUserName("");
     setAuthed(false);
   };
 
@@ -104,7 +116,7 @@ function Index() {
           </div>
           {/* Desktop actions */}
           <div className="hidden sm:flex flex-wrap items-center justify-end gap-2">
-            <span className="text-sm text-muted-foreground">Saif</span>
+            <span className="text-sm text-muted-foreground">{userName || "Student"}</span>
             <ThemeToggle />
             <Button variant="outline" size="sm" asChild>
               <Link to="/about"><Info className="h-4 w-4 mr-1.5" /> About</Link>
@@ -124,7 +136,7 @@ function Index() {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-56">
-                <DropdownMenuLabel>Saif</DropdownMenuLabel>
+                <DropdownMenuLabel>{userName || "Student"}</DropdownMenuLabel>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem asChild>
                   <Link to="/about"><Info className="h-4 w-4 mr-2" /> About</Link>
