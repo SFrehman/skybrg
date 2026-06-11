@@ -7,20 +7,18 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ArrowLeft, Loader2, Upload, Eye, EyeOff } from "lucide-react";
 import { toast } from "sonner";
+import { useServerFn } from "@tanstack/react-start";
+import { changePassword, updateAvatar } from "@/lib/auth.functions";
 
 export const Route = createFileRoute("/profile")({
   head: () => ({ meta: [{ title: "Profile — SkyBridge" }] }),
   component: ProfilePage,
 });
 
-async function sha256(text: string) {
-  const buf = new TextEncoder().encode(text);
-  const hash = await crypto.subtle.digest("SHA-256", buf);
-  return Array.from(new Uint8Array(hash)).map((b) => b.toString(16).padStart(2, "0")).join("");
-}
-
 function ProfilePage() {
   const navigate = useNavigate();
+  const fnChangePw = useServerFn(changePassword);
+  const fnUpdateAvatar = useServerFn(updateAvatar);
   const [loading, setLoading] = useState(true);
   const [student, setStudent] = useState<{ college_roll: string; uni_roll: string; name: string; short_name: string; avatar_url: string | null } | null>(null);
   const [uploading, setUploading] = useState(false);
@@ -55,8 +53,8 @@ function ProfilePage() {
     if (upErr) { toast.error("Upload failed"); setUploading(false); return; }
     const { data: pub } = supabase.storage.from("user-files").getPublicUrl(path);
     const url = pub.publicUrl;
-    const { error: updErr } = await supabase.from("students").update({ avatar_url: url, updated_at: new Date().toISOString() }).eq("college_roll", student.college_roll);
-    if (updErr) { toast.error("Could not save"); setUploading(false); return; }
+    try { await fnUpdateAvatar({ data: { roll: student.college_roll, avatarUrl: url } }); }
+    catch { toast.error("Could not save"); setUploading(false); return; }
     setStudent({ ...student, avatar_url: url });
     toast.success("Profile picture updated");
     setUploading(false);
@@ -68,15 +66,11 @@ function ProfilePage() {
     if (newPw.length < 4) { toast.error("Password must be at least 4 characters"); return; }
     if (newPw !== confirmPw) { toast.error("Passwords do not match"); return; }
     setSavingPw(true);
-    const { data } = await supabase.from("students").select("password_hash").eq("college_roll", student.college_roll).maybeSingle();
-    const oldHash = await sha256(oldPw.trim() + ":" + student.college_roll);
-    if (data?.password_hash && data.password_hash !== oldHash) {
-      toast.error("Current password is incorrect"); setSavingPw(false); return;
-    }
-    const newHash = await sha256(newPw.trim() + ":" + student.college_roll);
-    const { error: err } = await supabase.from("students").update({ password_hash: newHash, updated_at: new Date().toISOString() }).eq("college_roll", student.college_roll);
-    setSavingPw(false);
-    if (err) { toast.error("Could not update password"); return; }
+    try {
+      const res = await fnChangePw({ data: { roll: student.college_roll, oldPassword: oldPw, newPassword: newPw } });
+      setSavingPw(false);
+      if (!res.ok) { toast.error(res.error || "Could not update password"); return; }
+    } catch { setSavingPw(false); toast.error("Could not update password"); return; }
     setOldPw(""); setNewPw(""); setConfirmPw("");
     toast.success("Password updated");
   };
