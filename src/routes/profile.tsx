@@ -8,7 +8,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { ArrowLeft, Loader2, Upload, Eye, EyeOff } from "lucide-react";
 import { toast } from "sonner";
 import { useServerFn } from "@tanstack/react-start";
-import { changePassword, updateAvatar } from "@/lib/auth.functions";
+import { changePassword, updateAvatar, updateShortName } from "@/lib/auth.functions";
+import { ContactFooter } from "@/components/ContactFooter";
 
 export const Route = createFileRoute("/profile")({
   head: () => ({ meta: [{ title: "Profile — SkyBridge" }] }),
@@ -19,10 +20,13 @@ function ProfilePage() {
   const navigate = useNavigate();
   const fnChangePw = useServerFn(changePassword);
   const fnUpdateAvatar = useServerFn(updateAvatar);
+  const fnUpdateShort = useServerFn(updateShortName);
   const [loading, setLoading] = useState(true);
   const [student, setStudent] = useState<{ college_roll: string; uni_roll: string; name: string; short_name: string; avatar_url: string | null } | null>(null);
   const [uploading, setUploading] = useState(false);
   const [savingPw, setSavingPw] = useState(false);
+  const [shortNameDraft, setShortNameDraft] = useState("");
+  const [savingShort, setSavingShort] = useState(false);
   const [oldPw, setOldPw] = useState("");
   const [newPw, setNewPw] = useState("");
   const [confirmPw, setConfirmPw] = useState("");
@@ -39,6 +43,7 @@ function ProfilePage() {
         .eq("college_roll", roll)
         .maybeSingle();
       if (data) setStudent(data as any);
+      if (data?.short_name) setShortNameDraft(data.short_name);
       setLoading(false);
     })();
   }, [navigate]);
@@ -75,6 +80,21 @@ function ProfilePage() {
     toast.success("Password updated");
   };
 
+  const handleSaveShortName = async () => {
+    if (!student) return;
+    const val = shortNameDraft.trim();
+    if (!val || val === student.short_name) return;
+    setSavingShort(true);
+    try {
+      const res = await fnUpdateShort({ data: { roll: student.college_roll, shortName: val } });
+      if (!res.ok) { toast.error(res.error || "Could not save"); setSavingShort(false); return; }
+      setStudent({ ...student, short_name: val });
+      localStorage.setItem("filevault_user", val);
+      toast.success("Nickname updated");
+    } catch { toast.error("Could not save"); }
+    setSavingShort(false);
+  };
+
   if (loading) {
     return <div className="flex min-h-screen items-center justify-center"><Loader2 className="h-6 w-6 animate-spin" /></div>;
   }
@@ -83,7 +103,7 @@ function ProfilePage() {
   }
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background flex flex-col">
       <header className="border-b border-border bg-card/80 backdrop-blur-sm">
         <div className="mx-auto max-w-3xl flex items-center justify-between px-4 py-3">
           <Button variant="ghost" size="sm" asChild>
@@ -93,7 +113,7 @@ function ProfilePage() {
           <span className="w-16" />
         </div>
       </header>
-      <main className="mx-auto max-w-3xl p-4 sm:p-6 space-y-6">
+      <main className="mx-auto max-w-3xl w-full p-4 sm:p-6 space-y-6 flex-1">
         <Card>
           <CardHeader>
             <CardTitle>Profile Picture</CardTitle>
@@ -136,8 +156,14 @@ function ProfilePage() {
               <Input value={student.name} disabled />
             </div>
             <div className="space-y-1">
-              <Label>Short Name</Label>
-              <Input value={student.short_name} disabled />
+              <Label htmlFor="snick">Nickname</Label>
+              <div className="flex gap-2">
+                <Input id="snick" value={shortNameDraft} onChange={(e) => setShortNameDraft(e.target.value)} maxLength={40} />
+                <Button type="button" onClick={handleSaveShortName} disabled={savingShort || !shortNameDraft.trim() || shortNameDraft.trim() === student.short_name}>
+                  {savingShort ? <Loader2 className="h-4 w-4 animate-spin" /> : "Save"}
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground">This is the name shown across the app.</p>
             </div>
           </CardContent>
         </Card>
@@ -172,6 +198,7 @@ function ProfilePage() {
           </CardContent>
         </Card>
       </main>
+      <ContactFooter />
     </div>
   );
 }
