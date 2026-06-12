@@ -3,14 +3,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Upload, Eye, EyeOff, Loader2, ArrowLeft, ShieldCheck } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
-import { lookupStudent, verifyPassword, createPassword, adminLogin } from "@/lib/auth.functions";
+import { Upload, Eye, EyeOff, Loader2, ArrowLeft, MessageCircle } from "lucide-react";
+import { lookupStudent, verifyPassword, createPassword } from "@/lib/auth.functions";
 import { useServerFn } from "@tanstack/react-start";
+import { useAdminWhatsapp, waLink } from "@/lib/contact";
 
-type Step = "roll" | "password" | "verify" | "create" | "admin" | "request" | "request-sent";
-
-const ADMIN_ROLL = "224";
+type Step = "roll" | "password" | "verify" | "create" | "not-listed" | "forgot";
 
 export function LoginForm({ onSuccess }: { onSuccess: () => void }) {
   const [step, setStep] = useState<Step>("roll");
@@ -22,20 +20,18 @@ export function LoginForm({ onSuccess }: { onSuccess: () => void }) {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-  const [reqName, setReqName] = useState("");
-  const [reqShort, setReqShort] = useState("");
-  const [reqWhats, setReqWhats] = useState("");
+  const adminWa = useAdminWhatsapp();
 
   const fnLookup = useServerFn(lookupStudent);
   const fnVerify = useServerFn(verifyPassword);
   const fnCreate = useServerFn(createPassword);
-  const fnAdmin = useServerFn(adminLogin);
 
-  const finishLogin = (s: { college_roll: string; short_name: string }, opts?: { adminUni?: string }) => {
+  const finishLogin = (s: { college_roll: string; short_name: string }, adminToken?: string | null) => {
     localStorage.setItem("filevault_auth", "true");
     localStorage.setItem("filevault_user", s.short_name);
     localStorage.setItem("filevault_roll", s.college_roll);
-    if (opts?.adminUni) localStorage.setItem("filevault_admin_uni", opts.adminUni);
+    if (adminToken) localStorage.setItem("filevault_admin_token", adminToken);
+    else localStorage.removeItem("filevault_admin_token");
     onSuccess();
   };
 
@@ -47,28 +43,12 @@ export function LoginForm({ onSuccess }: { onSuccess: () => void }) {
     try {
       const res = await fnLookup({ data: { roll } });
       setLoading(false);
-      if (!res.found) { setStep("request"); return; }
+      if (!res.found) { setStep("not-listed"); return; }
       setInfo({ short_name: res.short_name, name: res.name, college_roll: res.college_roll });
-      if (res.is_admin) { setStep("admin"); return; }
       setStep(res.has_password ? "password" : "verify");
     } catch {
       setLoading(false);
       setError("Something went wrong. Try again.");
-    }
-  };
-
-  const handleAdminSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError("");
-    setLoading(true);
-    try {
-      const res = await fnAdmin({ data: { uniRoll: uniRoll.trim() } });
-      setLoading(false);
-      if (!res.ok || !res.student) { setError("University roll number does not match"); return; }
-      finishLogin({ college_roll: res.student.college_roll, short_name: res.student.short_name }, { adminUni: uniRoll.trim() });
-    } catch {
-      setLoading(false);
-      setError("Something went wrong");
     }
   };
 
@@ -81,7 +61,7 @@ export function LoginForm({ onSuccess }: { onSuccess: () => void }) {
       const res = await fnVerify({ data: { roll: info.college_roll, password } });
       setLoading(false);
       if (!res.ok || !res.student) { setError("Incorrect password"); return; }
-      finishLogin({ college_roll: res.student.college_roll, short_name: res.student.short_name });
+      finishLogin({ college_roll: res.student.college_roll, short_name: res.student.short_name }, res.adminToken);
     } catch {
       setLoading(false);
       setError("Something went wrong");
@@ -105,7 +85,7 @@ export function LoginForm({ onSuccess }: { onSuccess: () => void }) {
       const res = await fnCreate({ data: { roll: info.college_roll, uniRoll: uniRoll.trim(), password } });
       setLoading(false);
       if (!res.ok || !res.student) { setError(res.ok ? "Could not save" : (res.error || "Could not save")); return; }
-      finishLogin({ college_roll: res.student.college_roll, short_name: res.student.short_name });
+      finishLogin({ college_roll: res.student.college_roll, short_name: res.student.short_name }, res.adminToken);
     } catch {
       setLoading(false);
       setError("Could not save password. Try again.");
@@ -114,28 +94,7 @@ export function LoginForm({ onSuccess }: { onSuccess: () => void }) {
 
   const goBack = () => {
     setError(""); setPassword(""); setConfirmPw(""); setUniRoll(""); setInfo(null);
-    setReqName(""); setReqShort(""); setReqWhats(""); setStep("roll");
-  };
-
-  const handleRequestSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError("");
-    if (!reqName.trim() || !uniRoll.trim() || !reqWhats.trim()) {
-      setError("Please fill all fields"); return;
-    }
-    setLoading(true);
-    const shortName = (reqShort.trim() || reqName.trim().split(" ")[0]);
-    const { error: err } = await supabase.from("signup_requests").insert({
-      college_roll: collegeRoll.trim(),
-      uni_roll: uniRoll.trim(),
-      name: reqName.trim(),
-      short_name: shortName,
-      whatsapp: reqWhats.trim(),
-      status: "pending",
-    });
-    setLoading(false);
-    if (err) { setError("Could not send request. Try again."); return; }
-    setStep("request-sent");
+    setStep("roll");
   };
 
   return (
@@ -144,25 +103,23 @@ export function LoginForm({ onSuccess }: { onSuccess: () => void }) {
         <Card className="w-full max-w-md shadow-xl border-border/50">
           <CardHeader className="text-center space-y-3">
             <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-primary text-primary-foreground">
-              {step === "admin" ? <ShieldCheck className="h-7 w-7" /> : <Upload className="h-7 w-7" />}
+              <Upload className="h-7 w-7" />
             </div>
             <CardTitle className="text-2xl font-bold text-foreground">
               {step === "roll" && "Sign In"}
               {step === "password" && `Welcome, ${info?.short_name}`}
               {step === "verify" && "Verify Identity"}
               {step === "create" && "Create Password"}
-              {step === "admin" && "Admin Sign In"}
-              {step === "request" && "Request Access"}
-              {step === "request-sent" && "Request Sent"}
+              {step === "not-listed" && "Not on the list"}
+              {step === "forgot" && "Forgot password?"}
             </CardTitle>
             <CardDescription className="text-muted-foreground">
               {step === "roll" && "Enter your college roll number to continue"}
               {step === "password" && "Enter your password to sign in"}
               {step === "verify" && "Enter your university roll number to confirm it's you"}
               {step === "create" && "Set a password for future logins"}
-              {step === "admin" && "Enter your university roll number to continue"}
-              {step === "request" && "Your roll isn't whitelisted. Submit a request and admin will contact you on WhatsApp."}
-              {step === "request-sent" && "Admin will contact you on WhatsApp soon for verification."}
+              {step === "not-listed" && "Your college roll number isn't on our access list. Reach out to the admin on WhatsApp to be added."}
+              {step === "forgot" && "Contact the admin on WhatsApp to reset your password."}
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -180,25 +137,6 @@ export function LoginForm({ onSuccess }: { onSuccess: () => void }) {
               </form>
             )}
 
-            {step === "admin" && (
-              <form onSubmit={handleAdminSubmit} className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="auroll">University Roll No</Label>
-                  <Input id="auroll" type="text" inputMode="numeric" value={uniRoll}
-                    onChange={(e) => setUniRoll(e.target.value)} required autoFocus />
-                </div>
-                {error && <p className="text-sm text-destructive bg-destructive/10 p-3 rounded-lg">{error}</p>}
-                <div className="flex gap-2">
-                  <Button type="button" variant="outline" onClick={goBack} className="flex-1">
-                    <ArrowLeft className="h-4 w-4 mr-1.5" /> Back
-                  </Button>
-                  <Button type="submit" className="flex-1" disabled={loading}>
-                    {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Sign In"}
-                  </Button>
-                </div>
-              </form>
-            )}
-
             {step === "password" && (
               <form onSubmit={handlePasswordSubmit} className="space-y-4">
                 <div className="space-y-2">
@@ -211,6 +149,9 @@ export function LoginForm({ onSuccess }: { onSuccess: () => void }) {
                       {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                     </button>
                   </div>
+                  <button type="button" onClick={() => setStep("forgot")} className="text-xs text-primary hover:underline">
+                    Forgot password?
+                  </button>
                 </div>
                 {error && <p className="text-sm text-destructive bg-destructive/10 p-3 rounded-lg">{error}</p>}
                 <div className="flex gap-2">
@@ -271,40 +212,20 @@ export function LoginForm({ onSuccess }: { onSuccess: () => void }) {
               </form>
             )}
 
-            {step === "request" && (
-              <form onSubmit={handleRequestSubmit} className="space-y-4">
-                <div className="space-y-2"><Label>College Roll No</Label><Input value={collegeRoll} disabled /></div>
-                <div className="space-y-2"><Label htmlFor="rname">Full Name</Label>
-                  <Input id="rname" value={reqName} onChange={(e) => setReqName(e.target.value)} required autoFocus /></div>
-                <div className="space-y-2"><Label htmlFor="rshort">Short / First Name (optional)</Label>
-                  <Input id="rshort" value={reqShort} onChange={(e) => setReqShort(e.target.value)} placeholder="Shown after login" /></div>
-                <div className="space-y-2"><Label htmlFor="ruroll">University Roll No</Label>
-                  <Input id="ruroll" value={uniRoll} onChange={(e) => setUniRoll(e.target.value)} required /></div>
-                <div className="space-y-2"><Label htmlFor="rwh">WhatsApp Number</Label>
-                  <Input id="rwh" type="tel" inputMode="tel" placeholder="+91…" value={reqWhats} onChange={(e) => setReqWhats(e.target.value)} required /></div>
-                {error && <p className="text-sm text-destructive bg-destructive/10 p-3 rounded-lg">{error}</p>}
-                <div className="flex gap-2">
-                  <Button type="button" variant="outline" onClick={goBack} className="flex-1">
-                    <ArrowLeft className="h-4 w-4 mr-1.5" /> Back
-                  </Button>
-                  <Button type="submit" className="flex-1" disabled={loading}>
-                    {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Send Request"}
-                  </Button>
-                </div>
-              </form>
-            )}
-
-            {step === "request-sent" && (
+            {(step === "not-listed" || step === "forgot") && (
               <div className="space-y-4">
-                <p className="text-sm text-muted-foreground bg-muted p-3 rounded-lg">
-                  Your request has been submitted. The admin will reach out to you on WhatsApp for verification. Once approved, you can sign in with your college roll number.
-                </p>
-                <Button onClick={goBack} className="w-full">Back to Sign In</Button>
+                <Button asChild className="w-full gap-2 bg-emerald-600 hover:bg-emerald-700 text-white">
+                  <a href={waLink(adminWa)} target="_blank" rel="noreferrer">
+                    <MessageCircle className="h-4 w-4" /> Message admin: {adminWa}
+                  </a>
+                </Button>
+                <Button variant="outline" onClick={goBack} className="w-full">
+                  <ArrowLeft className="h-4 w-4 mr-1.5" /> Back to Sign In
+                </Button>
               </div>
             )}
           </CardContent>
         </Card>
-        {collegeRoll === ADMIN_ROLL ? null : null}
       </div>
     </div>
   );

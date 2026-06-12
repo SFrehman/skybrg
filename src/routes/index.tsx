@@ -4,8 +4,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { LoginForm } from "@/components/LoginForm";
 import { FileUpload } from "@/components/FileUpload";
 import { FileGallery } from "@/components/FileGallery";
-import { PasskeyReset } from "@/components/PasskeyReset";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { ContactFooter } from "@/components/ContactFooter";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -38,7 +38,7 @@ function Index() {
     if (typeof window !== "undefined" && localStorage.getItem("filevault_auth") === "true") {
       setAuthed(true);
       setUserName(localStorage.getItem("filevault_user") || "");
-      setIsAdmin(localStorage.getItem("filevault_roll") === "224");
+      setIsAdmin(localStorage.getItem("filevault_roll") === "224" && !!localStorage.getItem("filevault_admin_token"));
     }
   }, []);
 
@@ -103,7 +103,7 @@ function Index() {
         onSuccess={() => {
           setAuthed(true);
           setUserName(localStorage.getItem("filevault_user") || "");
-          setIsAdmin(localStorage.getItem("filevault_roll") === "224");
+          setIsAdmin(localStorage.getItem("filevault_roll") === "224" && !!localStorage.getItem("filevault_admin_token"));
         }}
       />
     );
@@ -113,7 +113,7 @@ function Index() {
     localStorage.removeItem("filevault_auth");
     localStorage.removeItem("filevault_user");
     localStorage.removeItem("filevault_roll");
-    localStorage.removeItem("filevault_admin_uni");
+    localStorage.removeItem("filevault_admin_token");
     setUserName("");
     setAuthed(false);
   };
@@ -163,9 +163,6 @@ function Index() {
                 <DropdownMenuItem asChild>
                   <Link to="/about"><Info className="h-4 w-4 mr-2" /> About</Link>
                 </DropdownMenuItem>
-                <div className="px-2 py-1.5">
-                  <PasskeyReset />
-                </div>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={handleLogout} className="text-destructive focus:text-destructive">
                   <LogOut className="h-4 w-4 mr-2" /> Sign Out
@@ -180,6 +177,7 @@ function Index() {
         <FileUpload onUploadComplete={fetchFiles} />
         <FileGallery files={files} loading={filesLoading} onDelete={fetchFiles} />
       </main>
+      <ContactFooter />
     </div>
   );
 }
