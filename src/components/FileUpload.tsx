@@ -376,45 +376,6 @@ export function FileUpload({ onUploadComplete }: FileUploadProps) {
         </CardContent>
       </Card>
 
-      <Dialog open={step === "passkey"} onOpenChange={(open) => !open && resetState()}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Lock className="h-5 w-5 text-primary" />
-              Enter Passkey
-            </DialogTitle>
-          </DialogHeader>
-          <div className="space-y-3">
-            <Label>Passkey to upload {pending.length} file{pending.length !== 1 ? "s" : ""}</Label>
-            <div className="relative">
-              <Input
-                type={showPasskey ? "text" : "password"}
-                placeholder="Enter passkey"
-                value={passkey}
-                onChange={(e) => setPasskey(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && void handlePasskeySubmit()}
-                disabled={verifyingPasskey}
-                className="pr-10"
-              />
-              <button
-                type="button"
-                onClick={() => setShowPasskey((v) => !v)}
-                className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-              >
-                {showPasskey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-              </button>
-            </div>
-            {error && <p className="text-sm text-destructive">{error}</p>}
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={resetState}>Cancel</Button>
-            <Button onClick={() => void handlePasskeySubmit()} disabled={verifyingPasskey}>
-              {verifyingPasskey ? "Checking..." : "Verify"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
       <Dialog open={step === "name" || step === "uploading"} onOpenChange={(open) => !open && step !== "uploading" && resetState()}>
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
@@ -503,49 +464,13 @@ export function FileUpload({ onUploadComplete }: FileUploadProps) {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={resetTextState}>Cancel</Button>
-            <Button onClick={handleTextNext}>Next</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={textStep === "passkey" || textStep === "saving"} onOpenChange={(open) => !open && textStep !== "saving" && resetTextState()}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Lock className="h-5 w-5 text-primary" />
-              Enter Passkey
-            </DialogTitle>
-          </DialogHeader>
-          <div className="space-y-3">
-            <Label>Passkey to save text snippet</Label>
-            <div className="relative">
-              <Input
-                type={showTextPasskey ? "text" : "password"}
-                placeholder="Enter passkey"
-                value={textPasskey}
-                onChange={(e) => setTextPasskey(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && void handleTextSave()}
-                disabled={verifyingTextPasskey || textStep === "saving"}
-                className="pr-10"
-              />
-              <button
-                type="button"
-                onClick={() => setShowTextPasskey((v) => !v)}
-                className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-              >
-                {showTextPasskey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-              </button>
-            </div>
-            {textError && <p className="text-sm text-destructive">{textError}</p>}
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={resetTextState} disabled={textStep === "saving"}>Cancel</Button>
-            <Button onClick={() => void handleTextSave()} disabled={verifyingTextPasskey || textStep === "saving"}>
-              {textStep === "saving" ? "Saving..." : verifyingTextPasskey ? "Checking..." : "Save"}
+            <Button onClick={() => void handleTextSave()} disabled={textStep === "saving"}>
+              {textStep === "saving" ? "Saving..." : "Save"}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
     </>
   );
 }
