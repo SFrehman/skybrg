@@ -4,8 +4,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { LoginForm } from "@/components/LoginForm";
 import { FileUpload } from "@/components/FileUpload";
 import { FileGallery } from "@/components/FileGallery";
+import { PasskeyReset } from "@/components/PasskeyReset";
 import { ThemeToggle } from "@/components/ThemeToggle";
-import { ContactFooter } from "@/components/ContactFooter";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -15,7 +15,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { LogOut, Upload, Info, User, Shield } from "lucide-react";
+import { LogOut, Upload, Info, Menu, User, Shield } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 
 export const Route = createFileRoute("/")({
@@ -32,24 +32,14 @@ function Index() {
   const [authed, setAuthed] = useState(false);
   const [userName, setUserName] = useState("");
   const [isAdmin, setIsAdmin] = useState(false);
-  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
 
   useEffect(() => {
     if (typeof window !== "undefined" && localStorage.getItem("filevault_auth") === "true") {
       setAuthed(true);
       setUserName(localStorage.getItem("filevault_user") || "");
-      setIsAdmin(localStorage.getItem("filevault_roll") === "224" && !!localStorage.getItem("filevault_admin_token"));
+      setIsAdmin(localStorage.getItem("filevault_roll") === "224");
     }
   }, []);
-
-  // Load avatar from students table
-  useEffect(() => {
-    if (!authed) return;
-    const roll = localStorage.getItem("filevault_roll");
-    if (!roll) return;
-    supabase.from("students").select("avatar_url").eq("college_roll", roll).maybeSingle()
-      .then(({ data }) => setAvatarUrl(data?.avatar_url || null));
-  }, [authed]);
 
   const [files, setFiles] = useState<Array<{
     id: string;
@@ -103,7 +93,7 @@ function Index() {
         onSuccess={() => {
           setAuthed(true);
           setUserName(localStorage.getItem("filevault_user") || "");
-          setIsAdmin(localStorage.getItem("filevault_roll") === "224" && !!localStorage.getItem("filevault_admin_token"));
+          setIsAdmin(localStorage.getItem("filevault_roll") === "224");
         }}
       />
     );
@@ -113,7 +103,6 @@ function Index() {
     localStorage.removeItem("filevault_auth");
     localStorage.removeItem("filevault_user");
     localStorage.removeItem("filevault_roll");
-    localStorage.removeItem("filevault_admin_token");
     setUserName("");
     setAuthed(false);
   };
@@ -121,50 +110,61 @@ function Index() {
   return (
     <div className="min-h-screen bg-background">
       <header className="sticky top-0 z-50 border-b border-border bg-card/80 backdrop-blur-sm">
-        <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-3 sm:px-4 py-2.5">
-          <Link to="/" className="flex items-center gap-2 group">
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary text-primary-foreground transition-transform group-hover:scale-105">
+        <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-3 sm:px-4 py-3">
+          <div className="flex items-center gap-2">
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary text-primary-foreground">
               <Upload className="h-5 w-5" />
             </div>
-            <span className="text-lg font-bold text-foreground tracking-tight">SkyBridge</span>
-          </Link>
-
-          <div className="flex items-center gap-1.5">
+            <span className="text-lg font-bold text-foreground">SkyBridge</span>
+          </div>
+          {/* Desktop actions */}
+          <div className="hidden sm:flex flex-wrap items-center justify-end gap-2">
+            <span className="text-sm text-muted-foreground">{userName || "Student"}</span>
             <ThemeToggle />
+            <Button variant="outline" size="sm" asChild>
+              <Link to="/profile"><User className="h-4 w-4 mr-1.5" /> Profile</Link>
+            </Button>
             {isAdmin && (
-              <Button variant="ghost" size="icon" asChild title="Admin">
-                <Link to="/admin"><Shield className="h-4 w-4" /></Link>
+              <Button variant="outline" size="sm" asChild>
+                <Link to="/admin"><Shield className="h-4 w-4 mr-1.5" /> Admin</Link>
               </Button>
             )}
+            <Button variant="outline" size="sm" asChild>
+              <Link to="/about"><Info className="h-4 w-4 mr-1.5" /> About</Link>
+            </Button>
+            <PasskeyReset />
+            <Button variant="outline" size="sm" onClick={handleLogout}>
+              <LogOut className="h-4 w-4 mr-1.5" /> Sign Out
+            </Button>
+          </div>
+          {/* Mobile actions */}
+          <div className="flex sm:hidden items-center gap-2">
+            <ThemeToggle />
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <button
-                  className="flex h-9 w-9 items-center justify-center rounded-full bg-muted overflow-hidden border border-border hover:ring-2 hover:ring-primary/30 transition-all"
-                  aria-label="Profile menu"
-                >
-                  {avatarUrl ? (
-                    <img src={avatarUrl} alt="Profile" className="h-full w-full object-cover" />
-                  ) : (
-                    <span className="text-sm font-semibold text-foreground">
-                      {(userName?.[0] || "?").toUpperCase()}
-                    </span>
-                  )}
-                </button>
+                <Button variant="outline" size="icon" aria-label="Open menu">
+                  <Menu className="h-4 w-4" />
+                </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-56">
-                <DropdownMenuLabel className="font-normal">
-                  <div className="text-xs text-muted-foreground">Signed in as</div>
-                  <div className="text-sm font-semibold">{userName || "Student"}</div>
-                </DropdownMenuLabel>
+                <DropdownMenuLabel>{userName || "Student"}</DropdownMenuLabel>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem asChild>
                   <Link to="/profile"><User className="h-4 w-4 mr-2" /> Profile</Link>
                 </DropdownMenuItem>
+                {isAdmin && (
+                  <DropdownMenuItem asChild>
+                    <Link to="/admin"><Shield className="h-4 w-4 mr-2" /> Admin</Link>
+                  </DropdownMenuItem>
+                )}
                 <DropdownMenuItem asChild>
                   <Link to="/about"><Info className="h-4 w-4 mr-2" /> About</Link>
                 </DropdownMenuItem>
+                <div className="px-1 py-1">
+                  <PasskeyReset />
+                </div>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={handleLogout} className="text-destructive focus:text-destructive">
+                <DropdownMenuItem onClick={handleLogout}>
                   <LogOut className="h-4 w-4 mr-2" /> Sign Out
                 </DropdownMenuItem>
               </DropdownMenuContent>
@@ -177,7 +177,6 @@ function Index() {
         <FileUpload onUploadComplete={fetchFiles} />
         <FileGallery files={files} loading={filesLoading} onDelete={fetchFiles} />
       </main>
-      <ContactFooter />
     </div>
   );
 }

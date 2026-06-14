@@ -1,14 +1,31 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Upload, Eye, EyeOff, Loader2, ArrowLeft, MessageCircle } from "lucide-react";
-import { lookupStudent, verifyPassword, createPassword } from "@/lib/auth.functions";
-import { useServerFn } from "@tanstack/react-start";
-import { useAdminWhatsapp, waLink } from "@/lib/contact";
+import { Upload, Eye, EyeOff, Loader2, ArrowLeft } from "lucide-react";
+import introVideo from "@/assets/intro.mp4";
+import { supabase } from "@/integrations/supabase/client";
 
-type Step = "roll" | "password" | "verify" | "create" | "not-listed" | "forgot";
+type Step = "roll" | "password" | "verify" | "create" | "request" | "request-sent";
+
+interface Student {
+  college_roll: string;
+  uni_roll: string;
+  name: string;
+  short_name: string;
+  password_hash: string | null;
+}
+
+async function sha256(text: string): Promise<string> {
+  const buf = new TextEncoder().encode(text);
+  const hash = await crypto.subtle.digest("SHA-256", buf);
+  return Array.from(new Uint8Array(hash))
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+}
+
+const hashPw = (pw: string, roll: string) => sha256(pw.trim() + ":" + roll.trim());
 
 export function LoginForm({ onSuccess }: { onSuccess: () => void }) {
   const [step, setStep] = useState<Step>("roll");
@@ -16,22 +33,37 @@ export function LoginForm({ onSuccess }: { onSuccess: () => void }) {
   const [uniRoll, setUniRoll] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPw, setConfirmPw] = useState("");
-  const [info, setInfo] = useState<{ short_name: string; name: string; college_roll: string } | null>(null);
+  const [student, setStudent] = useState<Student | null>(null);
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-  const adminWa = useAdminWhatsapp();
+  const [reqName, setReqName] = useState("");
+  const [reqShort, setReqShort] = useState("");
+  const [reqWhats, setReqWhats] = useState("");
 
-  const fnLookup = useServerFn(lookupStudent);
-  const fnVerify = useServerFn(verifyPassword);
-  const fnCreate = useServerFn(createPassword);
+  const [introDone, setIntroDone] = useState(false);
+  const [introReady, setIntroReady] = useState(false);
+  const videoRef = useRef<HTMLVideoElement>(null);
 
-  const finishLogin = (s: { college_roll: string; short_name: string }, adminToken?: string | null) => {
+  useEffect(() => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("GET", introVideo, true);
+    xhr.responseType = "blob";
+    xhr.onload = () => {
+      if (xhr.status === 200 && videoRef.current) {
+        const blobUrl = URL.createObjectURL(xhr.response);
+        videoRef.current.src = blobUrl;
+        videoRef.current.load();
+      }
+    };
+    xhr.onerror = () => setIntroDone(true);
+    xhr.send();
+  }, []);
+
+  const finishLogin = (s: Student) => {
     localStorage.setItem("filevault_auth", "true");
     localStorage.setItem("filevault_user", s.short_name);
     localStorage.setItem("filevault_roll", s.college_roll);
-    if (adminToken) localStorage.setItem("filevault_admin_token", adminToken);
-    else localStorage.removeItem("filevault_admin_token");
     onSuccess();
   };
 
@@ -40,65 +72,115 @@ export function LoginForm({ onSuccess }: { onSuccess: () => void }) {
     setError("");
     setLoading(true);
     const roll = collegeRoll.trim();
-    try {
-      const res = await fnLookup({ data: { roll } });
-      setLoading(false);
-      if (!res.found) { setStep("not-listed"); return; }
-      setInfo({ short_name: res.short_name, name: res.name, college_roll: res.college_roll });
-      setStep(res.has_password ? "password" : "verify");
-    } catch {
-      setLoading(false);
-      setError("Something went wrong. Try again.");
+    const { data, error: err } = await supabase
+      .from("students")
+      .select("college_roll, uni_roll, name, short_name, password_hash")
+      .eq("college_roll", roll)
+      .maybeSingle();
+    setLoading(false);
+    if (err) { setError("Something went wrong. Try again."); return; }
+    if (!data) {
+      // Not whitelisted — offer request flow
+      setStep("request");
+      return;
     }
+    setStudent(data as Student);
+    setStep(data.password_hash ? "password" : "verify");
   };
 
   const handlePasswordSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!info) return;
+    if (!student) return;
     setError("");
     setLoading(true);
-    try {
-      const res = await fnVerify({ data: { roll: info.college_roll, password } });
-      setLoading(false);
-      if (!res.ok || !res.student) { setError("Incorrect password"); return; }
-      finishLogin({ college_roll: res.student.college_roll, short_name: res.student.short_name }, res.adminToken);
-    } catch {
-      setLoading(false);
-      setError("Something went wrong");
-    }
+    const h = await hashPw(password, student.college_roll);
+    setLoading(false);
+    if (h !== student.password_hash) { setError("Incorrect password"); return; }
+    finishLogin(student);
   };
 
   const handleVerifySubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!student) return;
     setError("");
+    if (uniRoll.trim() !== student.uni_roll) {
+      setError("University roll number does not match");
+      return;
+    }
     setStep("create");
   };
 
   const handleCreateSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!info) return;
+    if (!student) return;
     setError("");
     if (password.length < 4) { setError("Password must be at least 4 characters"); return; }
     if (password !== confirmPw) { setError("Passwords do not match"); return; }
     setLoading(true);
-    try {
-      const res = await fnCreate({ data: { roll: info.college_roll, uniRoll: uniRoll.trim(), password } });
-      setLoading(false);
-      if (!res.ok || !res.student) { setError(res.ok ? "Could not save" : (res.error || "Could not save")); return; }
-      finishLogin({ college_roll: res.student.college_roll, short_name: res.student.short_name }, res.adminToken);
-    } catch {
-      setLoading(false);
-      setError("Could not save password. Try again.");
-    }
+    const h = await hashPw(password, student.college_roll);
+    const { error: err } = await supabase
+      .from("students")
+      .update({ password_hash: h, updated_at: new Date().toISOString() })
+      .eq("college_roll", student.college_roll);
+    setLoading(false);
+    if (err) { setError("Could not save password. Try again."); return; }
+    finishLogin({ ...student, password_hash: h });
   };
 
   const goBack = () => {
-    setError(""); setPassword(""); setConfirmPw(""); setUniRoll(""); setInfo(null);
+    setError("");
+    setPassword("");
+    setConfirmPw("");
+    setUniRoll("");
+    setStudent(null);
+    setReqName("");
+    setReqShort("");
+    setReqWhats("");
     setStep("roll");
   };
 
+  const handleRequestSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError("");
+    if (!reqName.trim() || !uniRoll.trim() || !reqWhats.trim()) {
+      setError("Please fill all fields"); return;
+    }
+    setLoading(true);
+    const shortName = (reqShort.trim() || reqName.trim().split(" ")[0]);
+    const { error: err } = await supabase.from("signup_requests").insert({
+      college_roll: collegeRoll.trim(),
+      uni_roll: uniRoll.trim(),
+      name: reqName.trim(),
+      short_name: shortName,
+      whatsapp: reqWhats.trim(),
+      status: "pending",
+    });
+    setLoading(false);
+    if (err) { setError("Could not send request. Try again."); return; }
+    setStep("request-sent");
+  };
+
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background px-4">
+    <div className="relative flex min-h-screen items-center justify-center bg-background px-4 overflow-hidden">
+      {!introDone && (
+        <video
+          ref={videoRef}
+          muted
+          playsInline
+          onCanPlayThrough={() => {
+            if (!introReady) {
+              setIntroReady(true);
+              videoRef.current?.play().catch(() => setIntroDone(true));
+            }
+          }}
+          onEnded={(e) => {
+            const v = e.currentTarget;
+            v.pause();
+            setIntroDone(true);
+          }}
+          className="fixed inset-0 z-[100] h-full w-full object-cover bg-black"
+        />
+      )}
       <div className="w-full max-w-md">
         <Card className="w-full max-w-md shadow-xl border-border/50">
           <CardHeader className="text-center space-y-3">
@@ -107,19 +189,19 @@ export function LoginForm({ onSuccess }: { onSuccess: () => void }) {
             </div>
             <CardTitle className="text-2xl font-bold text-foreground">
               {step === "roll" && "Sign In"}
-              {step === "password" && `Welcome, ${info?.short_name}`}
+              {step === "password" && `Welcome, ${student?.short_name}`}
               {step === "verify" && "Verify Identity"}
               {step === "create" && "Create Password"}
-              {step === "not-listed" && "Not on the list"}
-              {step === "forgot" && "Forgot password?"}
+              {step === "request" && "Request Access"}
+              {step === "request-sent" && "Request Sent"}
             </CardTitle>
             <CardDescription className="text-muted-foreground">
               {step === "roll" && "Enter your college roll number to continue"}
               {step === "password" && "Enter your password to sign in"}
               {step === "verify" && "Enter your university roll number to confirm it's you"}
               {step === "create" && "Set a password for future logins"}
-              {step === "not-listed" && "Your college roll number isn't on our access list. Reach out to the admin on WhatsApp to be added."}
-              {step === "forgot" && "Contact the admin on WhatsApp to reset your password."}
+              {step === "request" && "Your roll isn't whitelisted. Submit a request and admin will contact you on WhatsApp."}
+              {step === "request-sent" && "Admin will contact you on WhatsApp soon for verification."}
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -127,8 +209,16 @@ export function LoginForm({ onSuccess }: { onSuccess: () => void }) {
               <form onSubmit={handleRollSubmit} className="space-y-4">
                 <div className="space-y-2">
                   <Label htmlFor="croll">College Roll No</Label>
-                  <Input id="croll" type="text" inputMode="numeric" placeholder="e.g. 224"
-                    value={collegeRoll} onChange={(e) => setCollegeRoll(e.target.value)} required autoFocus />
+                  <Input
+                    id="croll"
+                    type="text"
+                    inputMode="numeric"
+                    placeholder="e.g. 224"
+                    value={collegeRoll}
+                    onChange={(e) => setCollegeRoll(e.target.value)}
+                    required
+                    autoFocus
+                  />
                 </div>
                 {error && <p className="text-sm text-destructive bg-destructive/10 p-3 rounded-lg">{error}</p>}
                 <Button type="submit" className="w-full" disabled={loading}>
@@ -142,16 +232,24 @@ export function LoginForm({ onSuccess }: { onSuccess: () => void }) {
                 <div className="space-y-2">
                   <Label htmlFor="pw">Password</Label>
                   <div className="relative">
-                    <Input id="pw" type={showPassword ? "text" : "password"} placeholder="••••••••"
-                      value={password} onChange={(e) => setPassword(e.target.value)} required autoFocus className="pr-10" />
-                    <button type="button" onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors">
+                    <Input
+                      id="pw"
+                      type={showPassword ? "text" : "password"}
+                      placeholder="••••••••"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      required
+                      autoFocus
+                      className="pr-10"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                    >
                       {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                     </button>
                   </div>
-                  <button type="button" onClick={() => setStep("forgot")} className="text-xs text-primary hover:underline">
-                    Forgot password?
-                  </button>
                 </div>
                 {error && <p className="text-sm text-destructive bg-destructive/10 p-3 rounded-lg">{error}</p>}
                 <div className="flex gap-2">
@@ -169,8 +267,16 @@ export function LoginForm({ onSuccess }: { onSuccess: () => void }) {
               <form onSubmit={handleVerifySubmit} className="space-y-4">
                 <div className="space-y-2">
                   <Label htmlFor="uroll">University Roll No</Label>
-                  <Input id="uroll" type="text" inputMode="numeric" placeholder="e.g. 112010"
-                    value={uniRoll} onChange={(e) => setUniRoll(e.target.value)} required autoFocus />
+                  <Input
+                    id="uroll"
+                    type="text"
+                    inputMode="numeric"
+                    placeholder="e.g. 112010"
+                    value={uniRoll}
+                    onChange={(e) => setUniRoll(e.target.value)}
+                    required
+                    autoFocus
+                  />
                 </div>
                 {error && <p className="text-sm text-destructive bg-destructive/10 p-3 rounded-lg">{error}</p>}
                 <div className="flex gap-2">
@@ -187,18 +293,35 @@ export function LoginForm({ onSuccess }: { onSuccess: () => void }) {
                 <div className="space-y-2">
                   <Label htmlFor="npw">New Password</Label>
                   <div className="relative">
-                    <Input id="npw" type={showPassword ? "text" : "password"} placeholder="At least 4 characters"
-                      value={password} onChange={(e) => setPassword(e.target.value)} required autoFocus className="pr-10" />
-                    <button type="button" onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors">
+                    <Input
+                      id="npw"
+                      type={showPassword ? "text" : "password"}
+                      placeholder="At least 4 characters"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      required
+                      autoFocus
+                      className="pr-10"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                    >
                       {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                     </button>
                   </div>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="cpw">Confirm Password</Label>
-                  <Input id="cpw" type={showPassword ? "text" : "password"} placeholder="Re-enter password"
-                    value={confirmPw} onChange={(e) => setConfirmPw(e.target.value)} required />
+                  <Input
+                    id="cpw"
+                    type={showPassword ? "text" : "password"}
+                    placeholder="Re-enter password"
+                    value={confirmPw}
+                    onChange={(e) => setConfirmPw(e.target.value)}
+                    required
+                  />
                 </div>
                 {error && <p className="text-sm text-destructive bg-destructive/10 p-3 rounded-lg">{error}</p>}
                 <div className="flex gap-2">
@@ -212,16 +335,46 @@ export function LoginForm({ onSuccess }: { onSuccess: () => void }) {
               </form>
             )}
 
-            {(step === "not-listed" || step === "forgot") && (
+            {step === "request" && (
+              <form onSubmit={handleRequestSubmit} className="space-y-4">
+                <div className="space-y-2">
+                  <Label>College Roll No</Label>
+                  <Input value={collegeRoll} disabled />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="rname">Full Name</Label>
+                  <Input id="rname" value={reqName} onChange={(e) => setReqName(e.target.value)} required autoFocus />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="rshort">Short / First Name (optional)</Label>
+                  <Input id="rshort" value={reqShort} onChange={(e) => setReqShort(e.target.value)} placeholder="Shown after login" />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="ruroll">University Roll No</Label>
+                  <Input id="ruroll" value={uniRoll} onChange={(e) => setUniRoll(e.target.value)} required />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="rwh">WhatsApp Number</Label>
+                  <Input id="rwh" type="tel" inputMode="tel" placeholder="+91…" value={reqWhats} onChange={(e) => setReqWhats(e.target.value)} required />
+                </div>
+                {error && <p className="text-sm text-destructive bg-destructive/10 p-3 rounded-lg">{error}</p>}
+                <div className="flex gap-2">
+                  <Button type="button" variant="outline" onClick={goBack} className="flex-1">
+                    <ArrowLeft className="h-4 w-4 mr-1.5" /> Back
+                  </Button>
+                  <Button type="submit" className="flex-1" disabled={loading}>
+                    {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Send Request"}
+                  </Button>
+                </div>
+              </form>
+            )}
+
+            {step === "request-sent" && (
               <div className="space-y-4">
-                <Button asChild className="w-full gap-2 bg-emerald-600 hover:bg-emerald-700 text-white">
-                  <a href={waLink(adminWa)} target="_blank" rel="noreferrer">
-                    <MessageCircle className="h-4 w-4" /> Message admin: {adminWa}
-                  </a>
-                </Button>
-                <Button variant="outline" onClick={goBack} className="w-full">
-                  <ArrowLeft className="h-4 w-4 mr-1.5" /> Back to Sign In
-                </Button>
+                <p className="text-sm text-muted-foreground bg-muted p-3 rounded-lg">
+                  Your request has been submitted. The admin will reach out to you on WhatsApp for verification. Once approved, you can sign in with your college roll number.
+                </p>
+                <Button onClick={goBack} className="w-full">Back to Sign In</Button>
               </div>
             )}
           </CardContent>

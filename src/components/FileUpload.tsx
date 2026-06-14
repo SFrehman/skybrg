@@ -6,8 +6,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { supabase } from "@/integrations/supabase/client";
+import { validatePasskey } from "@/lib/passkey";
 import { uploadFileFast } from "@/lib/resumable-upload";
-import { Upload, FileUp, X, ClipboardType, FolderUp, Loader2 } from "lucide-react";
+import { Upload, FileUp, Lock, X, Eye, EyeOff, ClipboardType, FolderUp, Loader2 } from "lucide-react";
 import JSZip from "jszip";
 import { toast } from "sonner";
 
@@ -22,8 +23,11 @@ interface PendingFile {
 
 export function FileUpload({ onUploadComplete }: FileUploadProps) {
   const [pending, setPending] = useState<PendingFile[]>([]);
-  const [step, setStep] = useState<"select" | "name" | "uploading">("select");
+  const [passkey, setPasskey] = useState("");
+  const [showPasskey, setShowPasskey] = useState(false);
+  const [step, setStep] = useState<"select" | "passkey" | "name" | "uploading">("select");
   const [error, setError] = useState("");
+  const [verifyingPasskey, setVerifyingPasskey] = useState(false);
   const [progress, setProgress] = useState({ done: 0, total: 0 });
   const [bytesProgress, setBytesProgress] = useState({ uploaded: 0, total: 0 });
   const [isDragging, setIsDragging] = useState(false);
@@ -33,22 +37,39 @@ export function FileUpload({ onUploadComplete }: FileUploadProps) {
   const [zipProgress, setZipProgress] = useState(0);
 
   // Text snippet state
-  const [textStep, setTextStep] = useState<"closed" | "compose" | "saving">("closed");
+  const [textStep, setTextStep] = useState<"closed" | "compose" | "passkey" | "saving">("closed");
   const [textName, setTextName] = useState("");
   const [textBody, setTextBody] = useState("");
+  const [textPasskey, setTextPasskey] = useState("");
+  const [showTextPasskey, setShowTextPasskey] = useState(false);
   const [textError, setTextError] = useState("");
+  const [verifyingTextPasskey, setVerifyingTextPasskey] = useState(false);
 
   const resetTextState = () => {
     setTextStep("closed");
     setTextName("");
     setTextBody("");
+    setTextPasskey("");
+    setShowTextPasskey(false);
     setTextError("");
+    setVerifyingTextPasskey(false);
   };
 
-  const handleTextSave = async () => {
+  const handleTextNext = () => {
     if (!textName.trim()) { setTextError("Name is required"); return; }
     if (!textBody.trim()) { setTextError("Text content is required"); return; }
     setTextError("");
+    setTextStep("passkey");
+  };
+
+  const handleTextSave = async () => {
+    setVerifyingTextPasskey(true);
+    if (!(await validatePasskey(textPasskey))) {
+      setTextError("Invalid passkey");
+      setVerifyingTextPasskey(false);
+      return;
+    }
+    setVerifyingTextPasskey(false);
     setTextStep("saving");
     const body = textBody;
     const name = textName.trim();
@@ -66,7 +87,7 @@ export function FileUpload({ onUploadComplete }: FileUploadProps) {
       onUploadComplete();
     } catch (err: unknown) {
       setTextError(err instanceof Error ? err.message : "Failed to save");
-      setTextStep("compose");
+      setTextStep("passkey");
     }
   };
 
@@ -76,7 +97,7 @@ export function FileUpload({ onUploadComplete }: FileUploadProps) {
     setPending(
       arr.map((f) => ({ file: f, displayName: f.name.replace(/\.[^.]+$/, "") }))
     );
-    setStep("name");
+    setStep("passkey");
     setError("");
   };
 
@@ -227,6 +248,21 @@ export function FileUpload({ onUploadComplete }: FileUploadProps) {
     if (e.dataTransfer.files) addFiles(e.dataTransfer.files);
   };
 
+  const handlePasskeySubmit = async () => {
+    if (!passkey.trim()) {
+      setError("Passkey is required");
+      return;
+    }
+    setVerifyingPasskey(true);
+    if (await validatePasskey(passkey)) {
+      setStep("name");
+      setError("");
+    } else {
+      setError("Invalid passkey. Try again.");
+    }
+    setVerifyingPasskey(false);
+  };
+
   const handleUpload = async () => {
     if (pending.length === 0 || pending.some((p) => !p.displayName.trim())) {
       setError("All files need a display name");
@@ -294,8 +330,11 @@ export function FileUpload({ onUploadComplete }: FileUploadProps) {
 
   const resetState = () => {
     setPending([]);
+    setPasskey("");
+    setShowPasskey(false);
     setStep("select");
     setError("");
+    setVerifyingPasskey(false);
     setProgress({ done: 0, total: 0 });
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
@@ -375,6 +414,45 @@ export function FileUpload({ onUploadComplete }: FileUploadProps) {
           </div>
         </CardContent>
       </Card>
+
+      <Dialog open={step === "passkey"} onOpenChange={(open) => !open && resetState()}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Lock className="h-5 w-5 text-primary" />
+              Enter Passkey
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <Label>Passkey to upload {pending.length} file{pending.length !== 1 ? "s" : ""}</Label>
+            <div className="relative">
+              <Input
+                type={showPasskey ? "text" : "password"}
+                placeholder="Enter passkey"
+                value={passkey}
+                onChange={(e) => setPasskey(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && void handlePasskeySubmit()}
+                disabled={verifyingPasskey}
+                className="pr-10"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPasskey((v) => !v)}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+              >
+                {showPasskey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
+            </div>
+            {error && <p className="text-sm text-destructive">{error}</p>}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={resetState}>Cancel</Button>
+            <Button onClick={() => void handlePasskeySubmit()} disabled={verifyingPasskey}>
+              {verifyingPasskey ? "Checking..." : "Verify"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={step === "name" || step === "uploading"} onOpenChange={(open) => !open && step !== "uploading" && resetState()}>
         <DialogContent className="sm:max-w-lg">
@@ -464,13 +542,49 @@ export function FileUpload({ onUploadComplete }: FileUploadProps) {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={resetTextState}>Cancel</Button>
-            <Button onClick={() => void handleTextSave()} disabled={textStep === "saving"}>
-              {textStep === "saving" ? "Saving..." : "Save"}
-            </Button>
+            <Button onClick={handleTextNext}>Next</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
+      <Dialog open={textStep === "passkey" || textStep === "saving"} onOpenChange={(open) => !open && textStep !== "saving" && resetTextState()}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Lock className="h-5 w-5 text-primary" />
+              Enter Passkey
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <Label>Passkey to save text snippet</Label>
+            <div className="relative">
+              <Input
+                type={showTextPasskey ? "text" : "password"}
+                placeholder="Enter passkey"
+                value={textPasskey}
+                onChange={(e) => setTextPasskey(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && void handleTextSave()}
+                disabled={verifyingTextPasskey || textStep === "saving"}
+                className="pr-10"
+              />
+              <button
+                type="button"
+                onClick={() => setShowTextPasskey((v) => !v)}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+              >
+                {showTextPasskey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
+            </div>
+            {textError && <p className="text-sm text-destructive">{textError}</p>}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={resetTextState} disabled={textStep === "saving"}>Cancel</Button>
+            <Button onClick={() => void handleTextSave()} disabled={verifyingTextPasskey || textStep === "saving"}>
+              {textStep === "saving" ? "Saving..." : verifyingTextPasskey ? "Checking..." : "Save"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }

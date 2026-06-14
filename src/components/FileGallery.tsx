@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { supabase } from "@/integrations/supabase/client";
 import { Image, Video, FileText, File, Download, Trash2, Loader2, Lock, Eye, EyeOff, CheckSquare, Square, Copy, Check, ClipboardType } from "lucide-react";
+import { validatePasskey } from "@/lib/passkey";
 import { downloadFileFast, type DownloadProgress } from "@/lib/fast-download";
 
 interface FileRecord {
@@ -58,7 +59,10 @@ interface FileCardProps {
 function FileCard({ file, onDelete, selectMode, selected, onToggleSelect, onLongPress }: FileCardProps) {
   const [deleting, setDeleting] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [deletePasskey, setDeletePasskey] = useState("");
+  const [showPasskey, setShowPasskey] = useState(false);
   const [deleteError, setDeleteError] = useState("");
+  const [checkingPasskey, setCheckingPasskey] = useState(false);
   const [copied, setCopied] = useState(false);
   const [showTextDialog, setShowTextDialog] = useState(false);
   const [downloading, setDownloading] = useState(false);
@@ -87,6 +91,13 @@ function FileCard({ file, onDelete, selectMode, selected, onToggleSelect, onLong
 
   const handleDeleteConfirm = async () => {
     setDeleteError("");
+    setCheckingPasskey(true);
+    if (!(await validatePasskey(deletePasskey))) {
+      setDeleteError("Invalid passkey");
+      setCheckingPasskey(false);
+      return;
+    }
+    setCheckingPasskey(false);
     setDeleting(true);
     try {
       if (file.storage_path) {
@@ -258,22 +269,41 @@ function FileCard({ file, onDelete, selectMode, selected, onToggleSelect, onLong
         </DialogContent>
       </Dialog>
 
-      <Dialog open={showDeleteDialog} onOpenChange={(open) => { if (!open) { setShowDeleteDialog(false); setDeleteError(""); setDeleting(false); } }}>
+      <Dialog open={showDeleteDialog} onOpenChange={(open) => { if (!open) { setShowDeleteDialog(false); setDeletePasskey(""); setDeleteError(""); setCheckingPasskey(false); setDeleting(false); setShowPasskey(false); } }}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <Trash2 className="h-5 w-5 text-destructive" />
+              <Lock className="h-5 w-5 text-destructive" />
               Confirm Delete
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-3">
-            <p className="text-sm text-muted-foreground">Permanently delete <strong>{file.display_name}</strong>? This cannot be undone.</p>
+            <p className="text-sm text-muted-foreground">Enter passkey to delete <strong>{file.display_name}</strong></p>
+            <Label>Passkey</Label>
+            <div className="relative">
+              <Input
+                type={showPasskey ? "text" : "password"}
+                placeholder="Enter passkey"
+                value={deletePasskey}
+                onChange={(e) => setDeletePasskey(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && void handleDeleteConfirm()}
+                disabled={deleting || checkingPasskey}
+                className="pr-10"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPasskey((v) => !v)}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+              >
+                {showPasskey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
+            </div>
             {deleteError && <p className="text-sm text-destructive">{deleteError}</p>}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowDeleteDialog(false)}>Cancel</Button>
-            <Button variant="destructive" onClick={() => void handleDeleteConfirm()} disabled={deleting}>
-              {deleting ? "Deleting..." : "Delete"}
+            <Button variant="destructive" onClick={() => void handleDeleteConfirm()} disabled={deleting || checkingPasskey}>
+              {checkingPasskey ? "Checking..." : deleting ? "Deleting..." : "Delete"}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -286,6 +316,8 @@ export function FileGallery({ files, loading, onDelete }: FileGalleryProps) {
   const [selectMode, setSelectMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [showBulkDelete, setShowBulkDelete] = useState(false);
+  const [bulkPasskey, setBulkPasskey] = useState("");
+  const [showBulkPasskey, setShowBulkPasskey] = useState(false);
   const [bulkError, setBulkError] = useState("");
   const [bulkDeleting, setBulkDeleting] = useState(false);
   const [bulkProgress, setBulkProgress] = useState({ done: 0, total: 0 });
@@ -322,6 +354,10 @@ export function FileGallery({ files, loading, onDelete }: FileGalleryProps) {
 
   const handleBulkDelete = async () => {
     setBulkError("");
+    if (!(await validatePasskey(bulkPasskey))) {
+      setBulkError("Invalid passkey");
+      return;
+    }
     const targets = files.filter((f) => selectedIds.has(f.id));
     setBulkDeleting(true);
     setBulkProgress({ done: 0, total: targets.length });
@@ -333,6 +369,8 @@ export function FileGallery({ files, loading, onDelete }: FileGalleryProps) {
       await supabase.from("files").delete().in("id", targets.map((f) => f.id));
       setBulkProgress({ done: targets.length, total: targets.length });
       setShowBulkDelete(false);
+      setBulkPasskey("");
+      setShowBulkPasskey(false);
       exitSelectMode();
       onDelete();
     } catch {
@@ -449,16 +487,35 @@ export function FileGallery({ files, loading, onDelete }: FileGalleryProps) {
         </Tabs>
       </CardContent>
 
-      <Dialog open={showBulkDelete} onOpenChange={(open) => { if (!open && !bulkDeleting) { setShowBulkDelete(false); setBulkError(""); } }}>
+      <Dialog open={showBulkDelete} onOpenChange={(open) => { if (!open && !bulkDeleting) { setShowBulkDelete(false); setBulkPasskey(""); setBulkError(""); setShowBulkPasskey(false); } }}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <Trash2 className="h-5 w-5 text-destructive" />
+              <Lock className="h-5 w-5 text-destructive" />
               Delete {selectedIds.size} file{selectedIds.size !== 1 ? "s" : ""}
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-3">
-            <p className="text-sm text-muted-foreground">Permanently delete the selected files? This cannot be undone.</p>
+            <p className="text-sm text-muted-foreground">Enter passkey to permanently delete the selected files.</p>
+            <Label>Passkey</Label>
+            <div className="relative">
+              <Input
+                type={showBulkPasskey ? "text" : "password"}
+                placeholder="Enter passkey"
+                value={bulkPasskey}
+                onChange={(e) => setBulkPasskey(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && void handleBulkDelete()}
+                disabled={bulkDeleting}
+                className="pr-10"
+              />
+              <button
+                type="button"
+                onClick={() => setShowBulkPasskey((v) => !v)}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+              >
+                {showBulkPasskey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
+            </div>
             {bulkDeleting && (
               <p className="text-sm text-muted-foreground">Deleting {bulkProgress.done} of {bulkProgress.total}...</p>
             )}

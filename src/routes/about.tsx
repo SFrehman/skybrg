@@ -3,8 +3,6 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, Shield, Cloud, Lock, Zap, MessageCircle } from "lucide-react";
 import ownerImg from "@/assets/owner.jpg";
-import { useAdminWhatsapp, waLink } from "@/lib/contact";
-import { ContactFooter } from "@/components/ContactFooter";
 
 export const Route = createFileRoute("/about")({
   head: () => ({
@@ -19,9 +17,8 @@ export const Route = createFileRoute("/about")({
 });
 
 function AboutPage() {
-  const adminWa = useAdminWhatsapp();
   return (
-    <div className="min-h-screen bg-background flex flex-col">
+    <div className="min-h-screen bg-background">
       <header className="sticky top-0 z-50 border-b border-border bg-card/80 backdrop-blur-sm">
         <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-3">
           <div className="flex items-center gap-2">
@@ -71,8 +68,8 @@ function AboutPage() {
                   </div>
                   <div className="flex gap-2 pt-2">
                     <Button size="sm" asChild>
-                      <a href={waLink(adminWa)} target="_blank" rel="noreferrer">
-                        <MessageCircle className="h-4 w-4 mr-1.5" /> WhatsApp {adminWa}
+                      <a href="https://wa.me/923153857725" target="_blank" rel="noreferrer">
+                        <MessageCircle className="h-4 w-4 mr-1.5" /> WhatsApp 0315 3857725
                       </a>
                     </Button>
                   </div>
@@ -119,7 +116,6 @@ function AboutPage() {
           © {new Date().getFullYear()} SkyBridge. Crafted with care.
         </footer>
       </main>
-      <ContactFooter />
     </div>
   );
 }
