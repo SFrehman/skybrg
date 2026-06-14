@@ -107,13 +107,30 @@ export type Database = {
         }
         Relationships: []
       }
+      student_credentials: {
+        Row: {
+          college_roll: string
+          password_hash: string
+          updated_at: string
+        }
+        Insert: {
+          college_roll: string
+          password_hash: string
+          updated_at?: string
+        }
+        Update: {
+          college_roll?: string
+          password_hash?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       students: {
         Row: {
           avatar_url: string | null
           college_roll: string
           created_at: string
           name: string
-          password_hash: string | null
           short_name: string
           uni_roll: string
           updated_at: string
@@ -123,7 +140,6 @@ export type Database = {
           college_roll: string
           created_at?: string
           name: string
-          password_hash?: string | null
           short_name: string
           uni_roll: string
           updated_at?: string
@@ -133,7 +149,6 @@ export type Database = {
           college_roll?: string
           created_at?: string
           name?: string
-          password_hash?: string | null
           short_name?: string
           uni_roll?: string
           updated_at?: string
