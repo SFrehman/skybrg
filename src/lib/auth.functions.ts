@@ -15,11 +15,22 @@ async function getAdmin() {
   return supabaseAdmin;
 }
 
-async function verifyAdmin(adminUniRoll: string): Promise<boolean> {
-  if (!adminUniRoll) return false;
+// Admin session token derived from the admin's current password hash.
+// Changing or resetting the admin password invalidates existing admin tokens.
+async function makeAdminToken(passwordHash: string): Promise<string> {
+  return sha256(passwordHash + ":skybridge-admin");
+}
+
+async function verifyAdmin(adminToken: string): Promise<boolean> {
+  if (!adminToken) return false;
   const sb = await getAdmin();
-  const { data } = await sb.from("students").select("uni_roll").eq("college_roll", ADMIN_ROLL).maybeSingle();
-  return !!data && data.uni_roll === adminUniRoll.trim();
+  const { data } = await sb
+    .from("student_credentials")
+    .select("password_hash")
+    .eq("college_roll", ADMIN_ROLL)
+    .maybeSingle();
+  if (!data?.password_hash) return false;
+  return (await makeAdminToken(data.password_hash)) === adminToken.trim();
 }
 
 export const lookupStudent = createServerFn({ method: "POST" })
@@ -50,7 +61,8 @@ export const verifyPassword = createServerFn({ method: "POST" })
     const h = await hashPw(data.password, roll);
     if (h !== c.password_hash) return { ok: false as const };
     const { data: s } = await sb.from("students").select("college_roll, name, short_name").eq("college_roll", roll).maybeSingle();
-    return { ok: true as const, student: s };
+    const adminToken = roll === ADMIN_ROLL ? await makeAdminToken(c.password_hash) : null;
+    return { ok: true as const, student: s, adminToken };
   });
 
 export const createPassword = createServerFn({ method: "POST" })
@@ -64,7 +76,8 @@ export const createPassword = createServerFn({ method: "POST" })
     if (data.password.length < 4) return { ok: false as const, error: "Password too short" };
     const h = await hashPw(data.password, roll);
     await sb.from("student_credentials").upsert({ college_roll: roll, password_hash: h, updated_at: new Date().toISOString() });
-    return { ok: true as const, student: { college_roll: s.college_roll, name: s.name, short_name: s.short_name } };
+    const adminToken = roll === ADMIN_ROLL ? await makeAdminToken(h) : null;
+    return { ok: true as const, student: { college_roll: s.college_roll, name: s.name, short_name: s.short_name }, adminToken };
   });
 
 export const changePassword = createServerFn({ method: "POST" })
@@ -80,23 +93,14 @@ export const changePassword = createServerFn({ method: "POST" })
     }
     const newH = await hashPw(data.newPassword, roll);
     await sb.from("student_credentials").upsert({ college_roll: roll, password_hash: newH, updated_at: new Date().toISOString() });
-    return { ok: true as const };
-  });
-
-export const adminLogin = createServerFn({ method: "POST" })
-  .inputValidator((d: { uniRoll: string }) => d)
-  .handler(async ({ data }) => {
-    const ok = await verifyAdmin(data.uniRoll);
-    if (!ok) return { ok: false as const };
-    const sb = await getAdmin();
-    const { data: s } = await sb.from("students").select("college_roll, name, short_name, uni_roll").eq("college_roll", ADMIN_ROLL).maybeSingle();
-    return { ok: true as const, student: s };
+    const adminToken = roll === ADMIN_ROLL ? await makeAdminToken(newH) : null;
+    return { ok: true as const, adminToken };
   });
 
 export const adminListStudents = createServerFn({ method: "POST" })
-  .inputValidator((d: { adminUniRoll: string }) => d)
+  .inputValidator((d: { adminToken: string }) => d)
   .handler(async ({ data }) => {
-    if (!(await verifyAdmin(data.adminUniRoll))) throw new Error("Unauthorized");
+    if (!(await verifyAdmin(data.adminToken))) throw new Error("Unauthorized");
     const sb = await getAdmin();
     const { data: students } = await sb.from("students").select("college_roll, uni_roll, name, short_name, avatar_url, created_at").order("college_roll");
     const { data: creds } = await sb.from("student_credentials").select("college_roll");
@@ -105,9 +109,9 @@ export const adminListStudents = createServerFn({ method: "POST" })
   });
 
 export const adminResetStudent = createServerFn({ method: "POST" })
-  .inputValidator((d: { adminUniRoll: string; roll: string }) => d)
+  .inputValidator((d: { adminToken: string; roll: string }) => d)
   .handler(async ({ data }) => {
-    if (!(await verifyAdmin(data.adminUniRoll))) throw new Error("Unauthorized");
+    if (!(await verifyAdmin(data.adminToken))) throw new Error("Unauthorized");
     if (data.roll.trim() === ADMIN_ROLL) return { ok: false as const, error: "Cannot reset admin" };
     const sb = await getAdmin();
     await sb.from("student_credentials").delete().eq("college_roll", data.roll.trim());
@@ -115,18 +119,18 @@ export const adminResetStudent = createServerFn({ method: "POST" })
   });
 
 export const adminListSignupRequests = createServerFn({ method: "POST" })
-  .inputValidator((d: { adminUniRoll: string }) => d)
+  .inputValidator((d: { adminToken: string }) => d)
   .handler(async ({ data }) => {
-    if (!(await verifyAdmin(data.adminUniRoll))) throw new Error("Unauthorized");
+    if (!(await verifyAdmin(data.adminToken))) throw new Error("Unauthorized");
     const sb = await getAdmin();
     const { data: reqs } = await sb.from("signup_requests").select("*").order("created_at", { ascending: false });
     return reqs || [];
   });
 
 export const adminApproveSignup = createServerFn({ method: "POST" })
-  .inputValidator((d: { adminUniRoll: string; id: string }) => d)
+  .inputValidator((d: { adminToken: string; id: string }) => d)
   .handler(async ({ data }) => {
-    if (!(await verifyAdmin(data.adminUniRoll))) throw new Error("Unauthorized");
+    if (!(await verifyAdmin(data.adminToken))) throw new Error("Unauthorized");
     const sb = await getAdmin();
     const { data: r } = await sb.from("signup_requests").select("*").eq("id", data.id).maybeSingle();
     if (!r) return { ok: false as const, error: "Not found" };
@@ -141,9 +145,9 @@ export const adminApproveSignup = createServerFn({ method: "POST" })
   });
 
 export const adminRejectSignup = createServerFn({ method: "POST" })
-  .inputValidator((d: { adminUniRoll: string; id: string }) => d)
+  .inputValidator((d: { adminToken: string; id: string }) => d)
   .handler(async ({ data }) => {
-    if (!(await verifyAdmin(data.adminUniRoll))) throw new Error("Unauthorized");
+    if (!(await verifyAdmin(data.adminToken))) throw new Error("Unauthorized");
     const sb = await getAdmin();
     await sb.from("signup_requests").update({ status: "rejected", updated_at: new Date().toISOString() }).eq("id", data.id);
     return { ok: true as const };

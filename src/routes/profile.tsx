@@ -70,6 +70,7 @@ function ProfilePage() {
       const res = await fnChangePw({ data: { roll: student.college_roll, oldPassword: oldPw, newPassword: newPw } });
       setSavingPw(false);
       if (!res.ok) { toast.error(res.error || "Could not update password"); return; }
+      if (res.adminToken) localStorage.setItem("filevault_admin_token", res.adminToken);
     } catch { setSavingPw(false); toast.error("Could not update password"); return; }
     setOldPw(""); setNewPw(""); setConfirmPw("");
     toast.success("Password updated");
