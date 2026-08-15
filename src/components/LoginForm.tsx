@@ -3,14 +3,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Upload, Eye, EyeOff, Loader2, ArrowLeft, ShieldCheck } from "lucide-react";
+import { Upload, Eye, EyeOff, Loader2, ArrowLeft } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { lookupStudent, verifyPassword, createPassword, adminLogin } from "@/lib/auth.functions";
+import { lookupStudent, verifyPassword, createPassword } from "@/lib/auth.functions";
 import { useServerFn } from "@tanstack/react-start";
 
-type Step = "roll" | "password" | "verify" | "create" | "admin" | "request" | "request-sent";
-
-const ADMIN_ROLL = "224";
+type Step = "roll" | "password" | "verify" | "create" | "request" | "request-sent";
 
 export function LoginForm({ onSuccess }: { onSuccess: () => void }) {
   const [step, setStep] = useState<Step>("roll");
@@ -29,13 +27,13 @@ export function LoginForm({ onSuccess }: { onSuccess: () => void }) {
   const fnLookup = useServerFn(lookupStudent);
   const fnVerify = useServerFn(verifyPassword);
   const fnCreate = useServerFn(createPassword);
-  const fnAdmin = useServerFn(adminLogin);
 
-  const finishLogin = (s: { college_roll: string; short_name: string }, opts?: { adminUni?: string }) => {
+  const finishLogin = (s: { college_roll: string; short_name: string }, adminToken?: string | null) => {
     localStorage.setItem("filevault_auth", "true");
     localStorage.setItem("filevault_user", s.short_name);
     localStorage.setItem("filevault_roll", s.college_roll);
-    if (opts?.adminUni) localStorage.setItem("filevault_admin_uni", opts.adminUni);
+    if (adminToken) localStorage.setItem("filevault_admin_token", adminToken);
+    else localStorage.removeItem("filevault_admin_token");
     onSuccess();
   };
 
@@ -49,26 +47,10 @@ export function LoginForm({ onSuccess }: { onSuccess: () => void }) {
       setLoading(false);
       if (!res.found) { setStep("request"); return; }
       setInfo({ short_name: res.short_name, name: res.name, college_roll: res.college_roll });
-      if (res.is_admin) { setStep("admin"); return; }
       setStep(res.has_password ? "password" : "verify");
     } catch {
       setLoading(false);
       setError("Something went wrong. Try again.");
-    }
-  };
-
-  const handleAdminSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError("");
-    setLoading(true);
-    try {
-      const res = await fnAdmin({ data: { uniRoll: uniRoll.trim() } });
-      setLoading(false);
-      if (!res.ok || !res.student) { setError("University roll number does not match"); return; }
-      finishLogin({ college_roll: res.student.college_roll, short_name: res.student.short_name }, { adminUni: uniRoll.trim() });
-    } catch {
-      setLoading(false);
-      setError("Something went wrong");
     }
   };
 
@@ -81,7 +63,7 @@ export function LoginForm({ onSuccess }: { onSuccess: () => void }) {
       const res = await fnVerify({ data: { roll: info.college_roll, password } });
       setLoading(false);
       if (!res.ok || !res.student) { setError("Incorrect password"); return; }
-      finishLogin({ college_roll: res.student.college_roll, short_name: res.student.short_name });
+      finishLogin({ college_roll: res.student.college_roll, short_name: res.student.short_name }, res.adminToken);
     } catch {
       setLoading(false);
       setError("Something went wrong");
@@ -105,7 +87,7 @@ export function LoginForm({ onSuccess }: { onSuccess: () => void }) {
       const res = await fnCreate({ data: { roll: info.college_roll, uniRoll: uniRoll.trim(), password } });
       setLoading(false);
       if (!res.ok || !res.student) { setError(res.ok ? "Could not save" : (res.error || "Could not save")); return; }
-      finishLogin({ college_roll: res.student.college_roll, short_name: res.student.short_name });
+      finishLogin({ college_roll: res.student.college_roll, short_name: res.student.short_name }, res.adminToken);
     } catch {
       setLoading(false);
       setError("Could not save password. Try again.");
@@ -144,14 +126,13 @@ export function LoginForm({ onSuccess }: { onSuccess: () => void }) {
         <Card className="w-full max-w-md shadow-xl border-border/50">
           <CardHeader className="text-center space-y-3">
             <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-primary text-primary-foreground">
-              {step === "admin" ? <ShieldCheck className="h-7 w-7" /> : <Upload className="h-7 w-7" />}
+              <Upload className="h-7 w-7" />
             </div>
             <CardTitle className="text-2xl font-bold text-foreground">
               {step === "roll" && "Sign In"}
               {step === "password" && `Welcome, ${info?.short_name}`}
               {step === "verify" && "Verify Identity"}
               {step === "create" && "Create Password"}
-              {step === "admin" && "Admin Sign In"}
               {step === "request" && "Request Access"}
               {step === "request-sent" && "Request Sent"}
             </CardTitle>
@@ -160,7 +141,6 @@ export function LoginForm({ onSuccess }: { onSuccess: () => void }) {
               {step === "password" && "Enter your password to sign in"}
               {step === "verify" && "Enter your university roll number to confirm it's you"}
               {step === "create" && "Set a password for future logins"}
-              {step === "admin" && "Enter your university roll number to continue"}
               {step === "request" && "Your roll isn't whitelisted. Submit a request and admin will contact you on WhatsApp."}
               {step === "request-sent" && "Admin will contact you on WhatsApp soon for verification."}
             </CardDescription>
@@ -177,25 +157,6 @@ export function LoginForm({ onSuccess }: { onSuccess: () => void }) {
                 <Button type="submit" className="w-full" disabled={loading}>
                   {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Continue"}
                 </Button>
-              </form>
-            )}
-
-            {step === "admin" && (
-              <form onSubmit={handleAdminSubmit} className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="auroll">University Roll No</Label>
-                  <Input id="auroll" type="text" inputMode="numeric" value={uniRoll}
-                    onChange={(e) => setUniRoll(e.target.value)} required autoFocus />
-                </div>
-                {error && <p className="text-sm text-destructive bg-destructive/10 p-3 rounded-lg">{error}</p>}
-                <div className="flex gap-2">
-                  <Button type="button" variant="outline" onClick={goBack} className="flex-1">
-                    <ArrowLeft className="h-4 w-4 mr-1.5" /> Back
-                  </Button>
-                  <Button type="submit" className="flex-1" disabled={loading}>
-                    {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Sign In"}
-                  </Button>
-                </div>
               </form>
             )}
 
@@ -304,7 +265,6 @@ export function LoginForm({ onSuccess }: { onSuccess: () => void }) {
             )}
           </CardContent>
         </Card>
-        {collegeRoll === ADMIN_ROLL ? null : null}
       </div>
     </div>
   );

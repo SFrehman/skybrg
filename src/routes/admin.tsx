@@ -33,7 +33,7 @@ interface StudentRow {
 function AdminPage() {
   const navigate = useNavigate();
   const [allowed, setAllowed] = useState(false);
-  const [adminUni, setAdminUni] = useState("");
+  const [adminToken, setAdminToken] = useState("");
   const [students, setStudents] = useState<StudentRow[]>([]);
   const [requests, setRequests] = useState<SignupRequest[]>([]);
   const [loading, setLoading] = useState(true);
@@ -48,19 +48,19 @@ function AdminPage() {
   useEffect(() => {
     if (typeof window === "undefined") return;
     const roll = localStorage.getItem("filevault_roll");
-    const uni = localStorage.getItem("filevault_admin_uni") || "";
-    if (roll !== ADMIN_ROLL || !uni) { navigate({ to: "/" }); return; }
-    setAdminUni(uni);
+    const token = localStorage.getItem("filevault_admin_token") || "";
+    if (roll !== ADMIN_ROLL || !token) { navigate({ to: "/" }); return; }
+    setAdminToken(token);
     setAllowed(true);
   }, [navigate]);
 
   const refresh = useCallback(async () => {
-    if (!adminUni) return;
+    if (!adminToken) return;
     setLoading(true);
     try {
       const [s, r] = await Promise.all([
-        fnList({ data: { adminUniRoll: adminUni } }),
-        fnReqs({ data: { adminUniRoll: adminUni } }),
+        fnList({ data: { adminToken: adminToken } }),
+        fnReqs({ data: { adminToken: adminToken } }),
       ]);
       setStudents(s as StudentRow[]);
       setRequests(r as SignupRequest[]);
@@ -68,27 +68,27 @@ function AdminPage() {
       toast.error("Admin session expired. Please sign in again.");
     }
     setLoading(false);
-  }, [adminUni, fnList, fnReqs]);
+  }, [adminToken, fnList, fnReqs]);
 
   useEffect(() => { if (allowed) refresh(); }, [allowed, refresh]);
 
   const approve = async (r: SignupRequest) => {
     setBusyId(r.id);
     try {
-      const res = await fnApprove({ data: { adminUniRoll: adminUni, id: r.id } });
+      const res = await fnApprove({ data: { adminToken: adminToken, id: r.id } });
       if (!res.ok) toast.error(res.error || "Could not approve"); else toast.success(`Approved ${r.short_name}`);
     } catch { toast.error("Could not approve"); }
     setBusyId(null); refresh();
   };
   const reject = async (r: SignupRequest) => {
     setBusyId(r.id);
-    try { await fnReject({ data: { adminUniRoll: adminUni, id: r.id } }); } catch { /* noop */ }
+    try { await fnReject({ data: { adminToken: adminToken, id: r.id } }); } catch { /* noop */ }
     setBusyId(null); refresh();
   };
   const resetUser = async (s: StudentRow) => {
     setBusyId(s.college_roll);
     try {
-      const res = await fnReset({ data: { adminUniRoll: adminUni, roll: s.college_roll } });
+      const res = await fnReset({ data: { adminToken: adminToken, roll: s.college_roll } });
       if (!res.ok) toast.error(res.error || "Could not reset");
       else toast.success(`${s.short_name}'s account reset. They can sign in to create a new password.`);
     } catch { toast.error("Could not reset"); }
