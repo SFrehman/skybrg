@@ -96,7 +96,7 @@ function AboutPage() {
         {/* Features */}
         <section className="grid gap-4 sm:grid-cols-3">
           {[
-            { icon: Lock, title: "Secure by Default", text: "Protected access with passkey authentication." },
+            { icon: Lock, title: "Secure by Default", text: "Roll-number sign-in with a passkey required before deleting files." },
             { icon: Zap, title: "Fast & Light", text: "Instant uploads with realtime sync across devices." },
             { icon: Cloud, title: "Always Available", text: "Your files are always one tap away, anywhere." },
           ].map(({ icon: Icon, title, text }) => (
