@@ -4,14 +4,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { KeyRound, Eye, EyeOff } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
-import { setPasskey } from "@/lib/passkey";
-
-const RESET_PASSWORD = "5683";
+import { useServerFn } from "@tanstack/react-start";
+import { resetPasskey } from "@/lib/passkey.functions";
 
 export function PasskeyReset() {
   const [open, setOpen] = useState(false);
-  const [step, setStep] = useState<"verify" | "reset">("verify");
   const [resetPassword, setResetPassword] = useState("");
   const [newPasskey, setNewPasskey] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -19,10 +16,10 @@ export function PasskeyReset() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [saving, setSaving] = useState(false);
+  const fnReset = useServerFn(resetPasskey);
 
   const handleOpen = () => {
     setOpen(true);
-    setStep("verify");
     setResetPassword("");
     setNewPasskey("");
     setError("");
@@ -35,39 +32,28 @@ export function PasskeyReset() {
     setOpen(false);
   };
 
-  const handleVerify = () => {
-    if (resetPassword === RESET_PASSWORD) {
-      setStep("reset");
-      setError("");
-    } else {
-      setError("Invalid reset password");
-    }
-  };
-
   const handleReset = async () => {
     const trimmedPasskey = newPasskey.trim();
 
-    if (!trimmedPasskey) {
-      setError("Passkey cannot be empty");
+    if (!trimmedPasskey || !resetPassword.trim()) {
+      setError("Enter the reset password and a new passkey");
       return;
     }
 
     setSaving(true);
-
-    const { error: dbError } = await supabase
-      .from("settings")
-      .upsert(
-        { key: "upload_passkey", value: trimmedPasskey, updated_at: new Date().toISOString() },
-        { onConflict: "key" }
-      );
-
-    if (dbError) {
-      setError("Failed to save passkey");
+    try {
+      const res = await fnReset({ data: { resetPassword: resetPassword.trim(), newPasskey: trimmedPasskey } });
+      if (!res.ok) {
+        setError(res.error || "Could not update passkey");
+        setSaving(false);
+        return;
+      }
+    } catch {
+      setError("Could not update passkey");
       setSaving(false);
       return;
     }
 
-    setPasskey(trimmedPasskey);
     setSaving(false);
     setSuccess("Passkey updated successfully!");
     setError("");
@@ -85,12 +71,12 @@ export function PasskeyReset() {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <KeyRound className="h-5 w-5 text-primary" />
-              {step === "verify" ? "Verify Identity" : "Set New Passkey"}
+              Reset Passkey
             </DialogTitle>
           </DialogHeader>
 
-          {step === "verify" ? (
-            <div className="space-y-3">
+          <div className="space-y-3">
+            <div className="space-y-2">
               <Label>Reset Password</Label>
               <div className="relative">
                 <Input
@@ -98,7 +84,6 @@ export function PasskeyReset() {
                   placeholder="Enter reset password"
                   value={resetPassword}
                   onChange={(e) => setResetPassword(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && handleVerify()}
                   className="pr-10"
                 />
                 <button
@@ -109,10 +94,8 @@ export function PasskeyReset() {
                   {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </button>
               </div>
-              {error && <p className="text-sm text-destructive">{error}</p>}
             </div>
-          ) : (
-            <div className="space-y-3">
+            <div className="space-y-2">
               <Label>New Passkey</Label>
               <div className="relative">
                 <Input
@@ -131,20 +114,16 @@ export function PasskeyReset() {
                   {showPasskey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </button>
               </div>
-              {error && <p className="text-sm text-destructive">{error}</p>}
-              {success && <p className="text-sm text-green-500">{success}</p>}
             </div>
-          )}
+            {error && <p className="text-sm text-destructive">{error}</p>}
+            {success && <p className="text-sm text-green-500">{success}</p>}
+          </div>
 
           <DialogFooter>
             <Button variant="outline" onClick={handleClose}>Cancel</Button>
-            {step === "verify" ? (
-              <Button onClick={handleVerify}>Verify</Button>
-            ) : (
-              <Button onClick={handleReset} disabled={!newPasskey.trim() || saving}>
-                {saving ? "Saving..." : "Save Passkey"}
-              </Button>
-            )}
+            <Button onClick={() => void handleReset()} disabled={!newPasskey.trim() || !resetPassword.trim() || saving}>
+              {saving ? "Saving..." : "Save Passkey"}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
