@@ -5,8 +5,8 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
-import { supabase } from "@/integrations/supabase/client";
 import { uploadFileFast } from "@/lib/resumable-upload";
+import { registerFiles } from "@/lib/files.functions";
 import { Upload, FileUp, X, ClipboardType, FolderUp, Loader2 } from "lucide-react";
 import JSZip from "jszip";
 import { toast } from "sonner";
@@ -53,15 +53,18 @@ export function FileUpload({ onUploadComplete }: FileUploadProps) {
     const body = textBody;
     const name = textName.trim();
     try {
-      const { error: dbError } = await supabase.from("files").insert({
-        file_name: `${name}.txt`,
-        display_name: name,
-        file_type: "text/plain",
-        file_size: new Blob([body]).size,
-        storage_path: null,
-        text_content: body,
+      await registerFiles({
+        data: {
+          rows: [{
+            file_name: `${name}.txt`,
+            display_name: name,
+            file_type: "text/plain",
+            file_size: new Blob([body]).size,
+            storage_path: null,
+            text_content: body,
+          }],
+        },
       });
-      if (dbError) throw dbError;
       resetTextState();
       onUploadComplete();
     } catch (err: unknown) {
@@ -118,14 +121,17 @@ export function FileUpload({ onUploadComplete }: FileUploadProps) {
           description: `${(uploaded / 1024 / 1024).toFixed(1)} / ${(totalBytes / 1024 / 1024).toFixed(1)} MB`,
         });
       });
-      const { error: dbError } = await supabase.from("files").insert({
-        file_name: zipFile.name,
-        display_name: folderName,
-        file_type: "application/zip",
-        file_size: zipFile.size,
-        storage_path: filePath,
+      await registerFiles({
+        data: {
+          rows: [{
+            file_name: zipFile.name,
+            display_name: folderName,
+            file_type: "application/zip",
+            file_size: zipFile.size,
+            storage_path: filePath,
+          }],
+        },
       });
-      if (dbError) throw dbError;
       toast.success(`Folder "${folderName}" uploaded`, { id: uploadingToast });
       onUploadComplete();
     } catch (err) {
@@ -281,8 +287,7 @@ export function FileUpload({ onUploadComplete }: FileUploadProps) {
         Array.from({ length: Math.min(CONCURRENCY, pending.length) }, worker)
       );
 
-      const { error: dbError } = await supabase.from("files").insert(rows);
-      if (dbError) throw dbError;
+      await registerFiles({ data: { rows } });
 
       resetState();
       onUploadComplete();
