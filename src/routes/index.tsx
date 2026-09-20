@@ -1,20 +1,11 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { LoginForm } from "@/components/LoginForm";
 import { FileUpload } from "@/components/FileUpload";
 import { FileGallery } from "@/components/FileGallery";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { Button } from "@/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { LogOut, Upload, Info, User, Shield } from "lucide-react";
+import { Upload, Info } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 
 export const Route = createFileRoute("/")({
@@ -22,34 +13,16 @@ export const Route = createFileRoute("/")({
     meta: [
       { title: "SkyBridge — Secure File Storage" },
       { name: "description", content: "Upload, organize, and access your files from anywhere." },
+      { property: "og:title", content: "SkyBridge — Secure File Storage" },
+      { property: "og:description", content: "Upload, organize, and access your files from anywhere." },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary_large_image" },
     ],
   }),
   component: Index,
 });
 
 function Index() {
-  const [authed, setAuthed] = useState(false);
-  const [userName, setUserName] = useState("");
-  const [isAdmin, setIsAdmin] = useState(false);
-  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (typeof window !== "undefined" && localStorage.getItem("filevault_auth") === "true") {
-      setAuthed(true);
-      setUserName(localStorage.getItem("filevault_user") || "");
-      setIsAdmin(localStorage.getItem("filevault_roll") === "224" && !!localStorage.getItem("filevault_admin_token"));
-    }
-  }, []);
-
-  // Load avatar from students table
-  useEffect(() => {
-    if (!authed) return;
-    const roll = localStorage.getItem("filevault_roll");
-    if (!roll) return;
-    supabase.from("students").select("avatar_url").eq("college_roll", roll).maybeSingle()
-      .then(({ data }) => setAvatarUrl(data?.avatar_url || null));
-  }, [authed]);
-
   const [files, setFiles] = useState<Array<{
     id: string;
     file_name: string;
@@ -73,13 +46,11 @@ function Index() {
   }, []);
 
   useEffect(() => {
-    if (authed) fetchFiles();
-  }, [authed, fetchFiles]);
+    fetchFiles();
+  }, [fetchFiles]);
 
   // Realtime subscription - auto-sync files across devices
   useEffect(() => {
-    if (!authed) return;
-
     const channel = supabase
       .channel("files-realtime")
       .on(
@@ -94,28 +65,7 @@ function Index() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [authed, fetchFiles]);
-
-  if (!authed) {
-    return (
-      <LoginForm
-        onSuccess={() => {
-          setAuthed(true);
-          setUserName(localStorage.getItem("filevault_user") || "");
-          setIsAdmin(localStorage.getItem("filevault_roll") === "224" && !!localStorage.getItem("filevault_admin_token"));
-        }}
-      />
-    );
-  }
-
-  const handleLogout = () => {
-    localStorage.removeItem("filevault_auth");
-    localStorage.removeItem("filevault_user");
-    localStorage.removeItem("filevault_roll");
-    localStorage.removeItem("filevault_admin_token");
-    setUserName("");
-    setAuthed(false);
-  };
+  }, [fetchFiles]);
 
   return (
     <div className="min-h-screen bg-background">
@@ -130,44 +80,9 @@ function Index() {
 
           <div className="flex items-center gap-1.5">
             <ThemeToggle />
-            {isAdmin && (
-              <Button variant="ghost" size="icon" asChild title="Admin">
-                <Link to="/admin"><Shield className="h-4 w-4" /></Link>
-              </Button>
-            )}
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <button
-                  className="flex h-9 w-9 items-center justify-center rounded-full bg-muted overflow-hidden border border-border hover:ring-2 hover:ring-primary/30 transition-all"
-                  aria-label="Profile menu"
-                >
-                  {avatarUrl ? (
-                    <img src={avatarUrl} alt="Profile" className="h-full w-full object-cover" />
-                  ) : (
-                    <span className="text-sm font-semibold text-foreground">
-                      {(userName?.[0] || "?").toUpperCase()}
-                    </span>
-                  )}
-                </button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-56">
-                <DropdownMenuLabel className="font-normal">
-                  <div className="text-xs text-muted-foreground">Signed in as</div>
-                  <div className="text-sm font-semibold">{userName || "Student"}</div>
-                </DropdownMenuLabel>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem asChild>
-                  <Link to="/profile"><User className="h-4 w-4 mr-2" /> Profile</Link>
-                </DropdownMenuItem>
-                <DropdownMenuItem asChild>
-                  <Link to="/about"><Info className="h-4 w-4 mr-2" /> About</Link>
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={handleLogout} className="text-destructive focus:text-destructive">
-                  <LogOut className="h-4 w-4 mr-2" /> Sign Out
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+            <Button variant="ghost" size="icon" asChild title="About">
+              <Link to="/about"><Info className="h-4 w-4" /></Link>
+            </Button>
           </div>
         </div>
       </header>
