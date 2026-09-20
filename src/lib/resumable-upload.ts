@@ -12,10 +12,14 @@ export async function uploadFileFast(
   const { uploads } = await createUploadUrls({ data: { paths: [path] } });
   const target = uploads.find((u) => u.path === path);
   if (!target) throw new Error("Could not create upload URL");
+  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string;
+  const signedUrl = target.signedUrl.startsWith("http")
+    ? target.signedUrl
+    : `${supabaseUrl}${target.signedUrl}`;
 
   await new Promise<void>((resolve, reject) => {
     const xhr = new XMLHttpRequest();
-    xhr.open("PUT", target.signedUrl);
+    xhr.open("PUT", signedUrl);
     xhr.setRequestHeader("Content-Type", file.type || "application/octet-stream");
     xhr.setRequestHeader("cache-control", "3600");
     xhr.upload.onprogress = (e) => {
