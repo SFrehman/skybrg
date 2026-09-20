@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { supabase } from "@/integrations/supabase/client";
 import { Image, Video, FileText, File, Download, Trash2, Loader2, Lock, Eye, EyeOff, CheckSquare, Square, Copy, Check, ClipboardType } from "lucide-react";
-import { validatePasskey } from "@/lib/passkey";
+import { deleteFiles } from "@/lib/files.functions";
 import { downloadFileFast, type DownloadProgress } from "@/lib/fast-download";
 
 interface FileRecord {
@@ -92,24 +92,18 @@ function FileCard({ file, onDelete, selectMode, selected, onToggleSelect, onLong
   const handleDeleteConfirm = async () => {
     setDeleteError("");
     setCheckingPasskey(true);
-    if (!(await validatePasskey(deletePasskey))) {
-      setDeleteError("Invalid passkey");
+    try {
+      await deleteFiles({ data: { ids: [file.id], passkey: deletePasskey } });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Delete failed";
+      setDeleteError(msg.includes("Invalid passkey") || msg.includes("Passkey") ? "Invalid passkey" : "Delete failed. Try again.");
       setCheckingPasskey(false);
       return;
     }
     setCheckingPasskey(false);
     setDeleting(true);
-    try {
-      if (file.storage_path) {
-        await supabase.storage.from("user-files").remove([file.storage_path]);
-      }
-      await supabase.from("files").delete().eq("id", file.id);
-      setShowDeleteDialog(false);
-      onDelete();
-    } catch {
-      setDeleteError("Delete failed. Try again.");
-      setDeleting(false);
-    }
+    setShowDeleteDialog(false);
+    onDelete();
   };
 
   const handleDownload = async () => {
@@ -354,27 +348,20 @@ export function FileGallery({ files, loading, onDelete }: FileGalleryProps) {
 
   const handleBulkDelete = async () => {
     setBulkError("");
-    if (!(await validatePasskey(bulkPasskey))) {
-      setBulkError("Invalid passkey");
-      return;
-    }
     const targets = files.filter((f) => selectedIds.has(f.id));
     setBulkDeleting(true);
     setBulkProgress({ done: 0, total: targets.length });
     try {
-      const paths = targets.map((f) => f.storage_path).filter((p): p is string => !!p);
-      if (paths.length > 0) {
-        await supabase.storage.from("user-files").remove(paths);
-      }
-      await supabase.from("files").delete().in("id", targets.map((f) => f.id));
+      await deleteFiles({ data: { ids: targets.map((f) => f.id), passkey: bulkPasskey } });
       setBulkProgress({ done: targets.length, total: targets.length });
       setShowBulkDelete(false);
       setBulkPasskey("");
       setShowBulkPasskey(false);
       exitSelectMode();
       onDelete();
-    } catch {
-      setBulkError("Delete failed. Try again.");
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Delete failed";
+      setBulkError(msg.includes("passkey") || msg.includes("Passkey") ? "Invalid passkey" : "Delete failed. Try again.");
     } finally {
       setBulkDeleting(false);
     }
