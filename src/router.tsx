@@ -1,3 +1,4 @@
+import { lazy } from "react";
 import { createRouter, useRouter } from "@tanstack/react-router";
 import { routeTree } from "./routeTree.gen";
 
@@ -68,7 +69,9 @@ export const getRouter = () => {
     context: {},
     scrollRestoration: true,
     defaultPreloadStaleTime: 0,
-    defaultErrorComponent: DefaultErrorComponent,
+    defaultErrorComponent: lazy(() =>
+      Promise.resolve({ default: DefaultErrorComponent }),
+    ),
   });
 
   return router;
