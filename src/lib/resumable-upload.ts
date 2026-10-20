@@ -12,7 +12,7 @@ export async function uploadFileFast(
   const { uploads } = await createUploadUrls({ data: { paths: [path] } });
   const target = uploads.find((u) => u.path === path);
   if (!target) throw new Error("Could not create upload URL");
-  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string;
+  const supabaseUrl = "https://idvnvajdzdqnfpwxdfmq.supabase.co";
   const signedUrl = target.signedUrl.startsWith("http")
     ? target.signedUrl
     : `${supabaseUrl}${target.signedUrl}`;
