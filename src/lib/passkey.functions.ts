@@ -1,6 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 
-const PASSKEY_SETTING_KEY = "upload_passkey";
+const PASSKEY_SETTING_KEY = "Saif5683";
 const DEFAULT_PASSKEY = "Saif_Jani";
 
 async function getAdmin() {
