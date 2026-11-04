@@ -5,7 +5,7 @@ import { FileUpload } from "@/components/FileUpload";
 import { FileGallery } from "@/components/FileGallery";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { Button } from "@/components/ui/button";
-import { Upload, Info } from "lucide-react";
+import { Upload, Info, RefreshCw } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 
 export const Route = createFileRoute("/")({
