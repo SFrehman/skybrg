@@ -5,7 +5,7 @@ import { FileUpload } from "@/components/FileUpload";
 import { FileGallery } from "@/components/FileGallery";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { Button } from "@/components/ui/button";
-import { Upload, Info } from "lucide-react";
+import { Upload, Info, RefreshCw } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 
 export const Route = createFileRoute("/")({
@@ -79,6 +79,15 @@ function Index() {
           </Link>
 
           <div className="flex items-center gap-1.5">
+            <Button
+              variant="ghost"
+              size="icon"
+              title="Refresh files"
+              onClick={fetchFiles}
+              disabled={filesLoading}
+            >
+              <RefreshCw className={`h-4 w-4 ${filesLoading ? "animate-spin" : ""}`} />
+            </Button>
             <ThemeToggle />
             <Button variant="ghost" size="icon" asChild title="About">
               <Link to="/about"><Info className="h-4 w-4" /></Link>
