@@ -18,7 +18,9 @@ async function readPasskey(): Promise<string> {
     .select("value")
     .eq("key", "upload_passkey")
     .maybeSingle();
-  return data?.value?.trim() || "Saif_Jani";
+  const value = data?.value?.trim();
+  if (!value) throw new Error("Passkey is not configured");
+  return value;
 }
 
 interface FileRowInput {
