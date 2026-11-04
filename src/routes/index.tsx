@@ -79,6 +79,15 @@ function Index() {
           </Link>
 
           <div className="flex items-center gap-1.5">
+            <Button
+              variant="ghost"
+              size="icon"
+              title="Refresh files"
+              onClick={fetchFiles}
+              disabled={filesLoading}
+            >
+              <RefreshCw className={`h-4 w-4 ${filesLoading ? "animate-spin" : ""}`} />
+            </Button>
             <ThemeToggle />
             <Button variant="ghost" size="icon" asChild title="About">
               <Link to="/about"><Info className="h-4 w-4" /></Link>
